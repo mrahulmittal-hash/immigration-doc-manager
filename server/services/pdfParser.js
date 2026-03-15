@@ -1,11 +1,64 @@
 const fs = require('fs');
+const path = require('path');
 const pdfParse = require('pdf-parse');
+
+let tesseractWorker = null;
+
+/**
+ * Get or create a reusable Tesseract worker for OCR.
+ */
+async function getTesseractWorker() {
+    if (tesseractWorker) return tesseractWorker;
+    try {
+        const Tesseract = require('tesseract.js');
+        tesseractWorker = await Tesseract.createWorker('eng');
+        return tesseractWorker;
+    } catch (e) {
+        console.warn('Tesseract.js not available:', e.message);
+        return null;
+    }
+}
+
+/**
+ * Extract text from an image file using Tesseract OCR.
+ */
+async function extractTextFromImage(filePath) {
+    const worker = await getTesseractWorker();
+    if (!worker) {
+        return { text: '', data: {}, pages: 0, isImageOnly: true, textLength: 0, ocrUsed: false };
+    }
+
+    try {
+        const { data } = await worker.recognize(filePath);
+        const text = (data.text || '').trim();
+        const extractedData = text.length >= 20 ? parseImmigrationData(text) : {};
+
+        return {
+            text,
+            data: extractedData,
+            pages: 1,
+            isImageOnly: false,
+            textLength: text.length,
+            ocrUsed: true,
+        };
+    } catch (e) {
+        console.warn('Tesseract OCR error:', e.message);
+        return { text: '', data: {}, pages: 0, isImageOnly: true, textLength: 0, ocrUsed: false };
+    }
+}
 
 /**
  * Extract text from a PDF file and attempt to parse common immigration document patterns.
- * Returns extraction results including whether the document had extractable text.
+ * Uses Tesseract OCR as fallback for scanned/image-only PDFs.
  */
 async function extractTextFromPDF(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+
+    // Handle image files directly
+    if (['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif'].includes(ext)) {
+        return extractTextFromImage(filePath);
+    }
+
     const buffer = fs.readFileSync(filePath);
 
     let text = '';
@@ -20,6 +73,22 @@ async function extractTextFromPDF(filePath) {
     }
 
     const isImageOnly = text.length < 20;
+
+    // If PDF is image-only (scanned), try OCR with Tesseract
+    if (isImageOnly) {
+        const ocrResult = await extractTextFromImage(filePath);
+        if (ocrResult.text.length >= 20) {
+            return {
+                text: ocrResult.text,
+                data: ocrResult.data,
+                pages: numpages || ocrResult.pages,
+                isImageOnly: false,
+                textLength: ocrResult.textLength,
+                ocrUsed: true,
+            };
+        }
+    }
+
     const extractedData = isImageOnly ? {} : parseImmigrationData(text);
 
     return {
@@ -27,7 +96,8 @@ async function extractTextFromPDF(filePath) {
         data: extractedData,
         pages: numpages,
         isImageOnly,
-        textLength: text.length
+        textLength: text.length,
+        ocrUsed: false,
     };
 }
 
@@ -185,6 +255,60 @@ function parseImmigrationData(text) {
         // LMIA / work permit specific
         { key: 'lmia_number', patterns: [/(?:lmia\s*(?:no\.?|number|#))[:\s]*([A-Z0-9\-]+)/i] },
         { key: 'noc_code', patterns: [/(?:noc\s*(?:code|no\.?|number)?)[:\s]*(\d{4,5})/i] },
+
+        // Eye colour
+        {
+            key: 'eye_colour', patterns: [
+                /(?:eye\s*colou?r|colour?\s*of\s*eyes)[:\s]*(brown|blue|green|hazel|grey|gray|black|amber)/i
+            ]
+        },
+
+        // Height
+        {
+            key: 'height', patterns: [
+                /(?:height)[:\s]*(\d+'\s*\d+"|\d+\s*(?:ft|feet)\s*\d+\s*(?:in|inch|inches)?|\d+\s*cm)/i
+            ]
+        },
+
+        // Country of issue (passport)
+        {
+            key: 'country_of_issue', patterns: [
+                /(?:country\s*of\s*issue|issuing\s*(?:country|authority|state))[:\s]*([A-Za-z\s]+?)(?:\s{2,}|$|\n)/i
+            ]
+        },
+
+        // IELTS / language test scores
+        {
+            key: 'ielts_listening', patterns: [
+                /(?:listening)[:\s]*(\d+\.?\d*)/i
+            ]
+        },
+        {
+            key: 'ielts_reading', patterns: [
+                /(?:reading)[:\s]*(\d+\.?\d*)/i
+            ]
+        },
+        {
+            key: 'ielts_writing', patterns: [
+                /(?:writing)[:\s]*(\d+\.?\d*)/i
+            ]
+        },
+        {
+            key: 'ielts_speaking', patterns: [
+                /(?:speaking)[:\s]*(\d+\.?\d*)/i
+            ]
+        },
+        {
+            key: 'ielts_overall', patterns: [
+                /(?:overall\s*(?:band\s*)?score|overall)[:\s]*(\d+\.?\d*)/i
+            ]
+        },
+        {
+            key: 'test_type', patterns: [
+                /(?:test\s*(?:type|name|format))[:\s]*(IELTS|CELPIP|TEF|PTE|TCF)/i,
+                /\b(IELTS|CELPIP|TEF|PTE|TCF)\b\s*(?:General|Academic|Test|Results?|Score)/i
+            ]
+        },
     ];
 
     for (const { key, patterns: pats } of patternGroups) {
@@ -272,4 +396,4 @@ function extractLineByLine(lines, data) {
     }
 }
 
-module.exports = { extractTextFromPDF };
+module.exports = { extractTextFromPDF, extractTextFromImage };

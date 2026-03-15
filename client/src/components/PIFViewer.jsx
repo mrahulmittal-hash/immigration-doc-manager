@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { api } from '../api';
-import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2 } from 'lucide-react';
+import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2, Wand2 } from 'lucide-react';
 
 const STEPS = [
     { id: 'personal', title: 'Personal Information', Icon: User, color: '#4f46e5' },
@@ -38,8 +38,14 @@ const OCR_TO_PIF_MAP = {
     nationality: 'nationality', citizenship: 'nationality',
     place_of_birth: 'placeOfBirth', sex: 'gender',
     date_of_issue: 'passportIssueDate', date_of_expiry: 'passportExpiryDate',
+    country_of_issue: 'passportCountry', country_of_residence: 'passportCountry',
     marital_status: 'maritalStatus', date_of_marriage: 'spouseMarriageDate',
     occupation: 'spouseOccupation', email: 'email', phone: 'phone',
+    eye_colour: 'eyeColour', height: 'height',
+    address: 'spouseAddress', employer_name: 'employer',
+    ielts_listening: 'ieltsListening', ielts_reading: 'ieltsReading',
+    ielts_writing: 'ieltsWriting', ielts_speaking: 'ieltsSpeaking',
+    ielts_overall: 'ieltsOverall', test_type: 'testType',
 };
 
 function isFilled(val) {
@@ -194,6 +200,8 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     const [ocrLoading, setOcrLoading] = useState(false);
     const [showOcr, setShowOcr] = useState(false);
     const [viewMode, setViewMode] = useState('form'); // 'form' | 'compare'
+    const [autoFilling, setAutoFilling] = useState(false);
+    const [autoFillResult, setAutoFillResult] = useState(null);
 
     const d = editing ? (editData || data || {}) : (data || {});
 
@@ -256,6 +264,29 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
             console.error('Failed to fetch OCR data:', e);
         }
         setOcrLoading(false);
+    };
+
+    // Auto-fill all empty PIF fields from documents
+    const handleAutoFill = async () => {
+        if (!clientId) return;
+        setAutoFilling(true);
+        setAutoFillResult(null);
+        try {
+            const result = await api.autoFillPIF(clientId);
+            if (result.success) {
+                setAutoFillResult(result);
+                // Refresh data by notifying parent
+                if (onDataSaved) onDataSaved(result.form_data);
+                // Also update edit data if in edit mode
+                if (editing) {
+                    setEditData(result.form_data);
+                }
+            }
+        } catch (e) {
+            console.error('Auto-fill failed:', e);
+            alert('Failed to auto-fill. Please try again.');
+        }
+        setAutoFilling(false);
     };
 
     // Get OCR value for a field
@@ -541,6 +572,11 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         </div>
                     </div>
                     <div className="pv-main-header-right">
+                        {/* Auto-fill Button */}
+                        <button className="pv-toolbar-btn autofill" onClick={handleAutoFill} disabled={autoFilling} title="Auto-fill empty PIF fields from uploaded documents">
+                            {autoFilling ? <Loader2 size={14} className="spin" /> : <Wand2 size={14} />}
+                            {autoFilling ? 'Filling...' : 'Auto-fill'}
+                        </button>
                         {/* OCR Button */}
                         <button className={`pv-toolbar-btn ${showOcr ? 'active' : ''}`} onClick={showOcr ? () => setShowOcr(false) : fetchOcr} disabled={ocrLoading} title="Show OCR extracted data">
                             {ocrLoading ? <Loader2 size={14} className="spin" /> : <ScanSearch size={14} />}
@@ -568,6 +604,27 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         <div className="pv-alert-banner edit">
                             <Pencil size={14} />
                             <div><strong>Edit Mode</strong><span>You are editing the client's PIF data. Click Save when done.</span></div>
+                        </div>
+                    )}
+
+                    {/* Auto-fill result banner */}
+                    {autoFillResult && (
+                        <div className="pv-alert-banner autofill">
+                            <Wand2 size={14} />
+                            <div>
+                                <strong>Auto-fill Complete</strong>
+                                <span>
+                                    {autoFillResult.fields_filled > 0
+                                        ? `${autoFillResult.fields_filled} field(s) were auto-filled from uploaded documents.`
+                                        : 'No empty fields could be filled — all matching fields already have values.'}
+                                </span>
+                                {autoFillResult.fields_filled > 0 && (
+                                    <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                                        Filled: {Object.keys(autoFillResult.filled).join(', ')}
+                                    </div>
+                                )}
+                            </div>
+                            <button className="pv-alert-dismiss" onClick={() => setAutoFillResult(null)}><X size={12} /></button>
                         </div>
                     )}
 

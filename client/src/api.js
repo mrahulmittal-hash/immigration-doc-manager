@@ -113,6 +113,7 @@ export const api = {
     verifyPIFData: (clientId) => request(`/pif/data/${clientId}/verify`, { method: 'POST' }),
     updatePIFData: (clientId, formData) => request(`/pif/data/${clientId}`, { method: 'PUT', body: JSON.stringify({ form_data: formData }) }),
     getPIFOcrData: (clientId) => request(`/pif/data/${clientId}/ocr`),
+    autoFillPIF: (clientId) => request(`/pif/data/${clientId}/autofill`, { method: 'POST' }),
 
     // ── Employers ────────────────────────────────────────────
     getEmployers: (search, status) => {
