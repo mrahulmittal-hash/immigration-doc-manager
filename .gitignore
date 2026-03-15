@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Database
+server/data/*.db
+
+# Uploaded files (contain sensitive client data)
+server/uploads/documents/*
+server/uploads/filled/*
+!server/uploads/documents/.gitkeep
+!server/uploads/filled/.gitkeep
+
+# Build output
+client/dist/
+
+# OS files
+.DS_Store
+Thumbs.db
