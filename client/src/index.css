@@ -2267,3 +2267,134 @@ td strong { color: var(--text-primary); }
 .dash-stat-accent {
   position: absolute; top: 0; left: 0; width: 100%; height: 3px;
 }
+
+/* ============================================================
+   Dependents & Immigration Photos
+   ============================================================ */
+.dep-panel { display: flex; flex-direction: column; gap: 16px; }
+
+.dep-specs {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #f59e0b33;
+  border-radius: 10px; padding: 16px;
+}
+.dep-specs-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: #92400e; margin-bottom: 10px;
+}
+.dep-specs-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px;
+}
+.dep-spec-item { display: flex; flex-direction: column; gap: 2px; }
+.dep-spec-label { font-size: 11px; font-weight: 600; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; }
+.dep-spec-value { font-size: 12px; color: #78350f; }
+
+.dep-person-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px; transition: box-shadow 0.15s;
+}
+.dep-person-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+
+.dep-person-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
+}
+.dep-person-info { display: flex; align-items: center; gap: 10px; }
+.dep-person-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.dep-person-rel { font-size: 12px; color: var(--text-muted); }
+
+.dep-photo-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 8px; border: 1px solid #3b82f633;
+  background: #3b82f60a; color: #3b82f6; font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+}
+.dep-photo-btn:hover { background: #3b82f618; }
+.dep-photo-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.dep-photo-list { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.dep-photo-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg-secondary); flex: 1; min-width: 280px;
+}
+.dep-photo-thumb {
+  width: 45px; height: 58px; object-fit: cover; border-radius: 4px;
+  border: 1px solid var(--border);
+}
+.dep-photo-meta { flex: 1; min-width: 0; }
+.dep-photo-name { font-size: 12px; color: var(--text-primary); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dep-photo-size { font-size: 11px; color: var(--text-muted); }
+.dep-photo-actions { display: flex; align-items: center; gap: 6px; }
+
+.dep-status-select {
+  font-size: 11px; padding: 2px 4px; border: 1px solid var(--border);
+  border-radius: 4px; background: #fff; color: var(--text-primary);
+}
+
+.dep-icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border);
+  background: #fff; color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+  text-decoration: none;
+}
+.dep-icon-btn:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.dep-icon-danger:hover { background: #fef2f2; color: #ef4444; border-color: #ef444433; }
+
+.dep-no-photo { font-size: 12px; color: var(--text-muted); margin-top: 10px; font-style: italic; }
+
+.dep-section-header {
+  display: flex; align-items: center; justify-content: space-between; padding: 4px 0;
+}
+.dep-section-header h3 {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 600; color: var(--text-primary); margin: 0;
+}
+.dep-add-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 8px; border: 1px solid #8b5cf633;
+  background: #8b5cf60a; color: #8b5cf6; font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+}
+.dep-add-btn:hover { background: #8b5cf618; }
+
+.dep-form {
+  background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+}
+.dep-form-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
+.dep-form-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;
+}
+.dep-form-grid input, .dep-form-grid select {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; background: #fff; color: var(--text-primary);
+}
+.dep-form-grid input:focus, .dep-form-grid select:focus {
+  outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px #3b82f618;
+}
+.dep-form-actions { display: flex; gap: 8px; margin-top: 12px; }
+.dep-save-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 8px; border: none;
+  background: #8b5cf6; color: #fff; font-size: 12px; font-weight: 500; cursor: pointer;
+}
+.dep-save-btn:hover { background: #7c3aed; }
+.dep-cancel-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border);
+  background: #fff; color: var(--text-muted); font-size: 12px; cursor: pointer;
+}
+.dep-cancel-btn:hover { background: var(--bg-secondary); }
+
+.dep-edit-inline {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+}
+.dep-edit-inline input, .dep-edit-inline select {
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
+  font-size: 12px; background: #fff;
+}
+
+.dep-empty {
+  text-align: center; padding: 40px 20px; color: var(--text-muted);
+  font-size: 14px;
+}

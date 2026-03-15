@@ -481,6 +481,46 @@ async function initDatabase() {
       )
     `);
 
+    // ── Dependents ─────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS dependents (
+        id              SERIAL PRIMARY KEY,
+        client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        first_name      TEXT NOT NULL,
+        last_name       TEXT NOT NULL,
+        relationship    TEXT NOT NULL,
+        date_of_birth   TEXT,
+        nationality     TEXT,
+        passport_number TEXT,
+        email           TEXT,
+        phone           TEXT,
+        gender          TEXT,
+        marital_status  TEXT,
+        photo_path      TEXT,
+        notes           TEXT,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Immigration Photos ───────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS immigration_photos (
+        id              SERIAL PRIMARY KEY,
+        client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        dependent_id    INTEGER REFERENCES dependents(id) ON DELETE CASCADE,
+        person_name     TEXT NOT NULL,
+        person_type     TEXT NOT NULL DEFAULT 'client',
+        filename        TEXT NOT NULL,
+        original_name   TEXT NOT NULL,
+        file_path       TEXT NOT NULL,
+        file_size       INTEGER,
+        status          TEXT DEFAULT 'pending',
+        notes           TEXT,
+        uploaded_at     TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
     // Seed sample employers
     const empExists = await client.query("SELECT COUNT(*) as cnt FROM employers");
     if (parseInt(empExists.rows[0].cnt) === 0) {

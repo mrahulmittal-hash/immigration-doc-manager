@@ -161,4 +161,28 @@ export const api = {
     createJobAd: (lmiaId, data) => request(`/lmia/${lmiaId}/ads`, { method: 'POST', body: JSON.stringify(data) }),
     updateJobAd: (id, data) => request(`/lmia/ads/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteJobAd: (id) => request(`/lmia/ads/${id}`, { method: 'DELETE' }),
+
+    // ── Dependents ─────────────────────────────────────────────
+    getDependents: (clientId) => request(`/clients/${clientId}/dependents`),
+    createDependent: (clientId, data) => request(`/clients/${clientId}/dependents`, { method: 'POST', body: JSON.stringify(data) }),
+    updateDependent: (id, data) => request(`/dependents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteDependent: (id) => request(`/dependents/${id}`, { method: 'DELETE' }),
+
+    // ── Immigration Photos ─────────────────────────────────────
+    getPhotos: (clientId) => request(`/clients/${clientId}/photos`),
+    uploadPhoto: (clientId, file, personName, personType, dependentId, notes) => {
+        const formData = new FormData();
+        formData.append('photo', file);
+        formData.append('person_name', personName);
+        formData.append('person_type', personType);
+        if (dependentId) formData.append('dependent_id', dependentId);
+        if (notes) formData.append('notes', notes);
+        return fetch(`${API_BASE}/clients/${clientId}/photos`, {
+            method: 'POST',
+            body: formData,
+        }).then(r => r.json());
+    },
+    getPhotoDownloadUrl: (id) => `${API_BASE}/photos/${id}/download`,
+    updatePhoto: (id, data) => request(`/photos/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deletePhoto: (id) => request(`/photos/${id}`, { method: 'DELETE' }),
 };

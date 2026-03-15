@@ -12,7 +12,8 @@ import EmailList from '../components/EmailList';
 import IRCCFormGenerator from '../components/IRCCFormGenerator';
 import RetainerPanel from '../components/RetainerPanel';
 import EmployerLink from '../components/EmployerLink';
-import { Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key, CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap, Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks, Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck, CreditCard, Briefcase } from 'lucide-react';
+import DependentsPanel from '../components/DependentsPanel';
+import { Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key, CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap, Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks, Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck, CreditCard, Briefcase, Users, Camera } from 'lucide-react';
 
 const VISA_COLORS = {
   'Express Entry':        'badge-primary',
@@ -43,6 +44,7 @@ const TABS = [
   { id: 'ircc-forms', label: 'IRCC Forms',  Icon: Stamp },
   { id: 'retainers', label: 'Retainers', Icon: CreditCard },
   { id: 'employer', label: 'Employer', Icon: Briefcase },
+  { id: 'dependents', label: 'Dependents & Photos', Icon: Users },
 ];
 
 const CATEGORIES = ['general','passport','identity','education','employment','financial','medical','letter','other'];
@@ -620,6 +622,8 @@ export default function ClientDetail() {
 
       {/* ── Employer Tab ────────────────────────────────── */}
       {activeTab === 'employer' && <EmployerLink clientId={id} />}
+
+      {activeTab === 'dependents' && <DependentsPanel clientId={id} clientName={client ? `${client.first_name} ${client.last_name}` : ''} />}
 
       {/* ── Field Mapper Modal ───────────────────────────────── */}
       {showFieldMapper && formFieldsData && (

@@ -30,6 +30,7 @@ const irccFormsRouter = require('./routes/irccForms');
 const employersRouter = require('./routes/employers');
 const retainersRouter = require('./routes/retainers');
 const lmiaRouter = require('./routes/lmia');
+const dependentsRouter = require('./routes/dependents');
 
 // Mount routes
 // Staff-facing routes protected by requireAuth (Cognito JWT or dev pass-through)
@@ -48,6 +49,7 @@ app.use('/api', requireAuth, irccFormsRouter);
 app.use('/api/employers', requireAuth, employersRouter);
 app.use('/api', requireAuth, retainersRouter);
 app.use('/api/lmia', requireAuth, lmiaRouter);
+app.use('/api', requireAuth, dependentsRouter);
 // PIF routes are PUBLIC (magic-link flow — no Cognito login required for clients)
 app.use('/api/pif', pifRouter);
 
