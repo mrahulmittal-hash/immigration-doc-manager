@@ -1,52 +1,73 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { api } from '../api';
 import { CheckCircle, Square, Circle, FolderOpen, User, Calendar, Trash2, Check, X, AlertTriangle } from 'lucide-react';
 
 const PRIORITIES = ['high', 'medium', 'low'];
 const CATEGORIES = ['PIF', 'Document Review', 'Form Filing', 'Client Follow-up', 'IRCC Submission', 'Other'];
-
-const SAMPLE_TASKS = [
-  { id:1, title:'Send PIF to Anish Sharma',           done:false, priority:'high',   cat:'PIF',              due:'2026-03-15', client:'Anish Sharma' },
-  { id:2, title:'Review passport copies for W. Chen',  done:false, priority:'high',   cat:'Document Review',  due:'2026-03-16', client:'Wei Chen' },
-  { id:3, title:'Fill IMM5257 for P. Nguyen',          done:false, priority:'medium', cat:'Form Filing',      due:'2026-03-18', client:'Phuong Nguyen' },
-  { id:4, title:'Follow up on IELTS scores',           done:true,  priority:'medium', cat:'Client Follow-up', due:'2026-03-14', client:'Raj Patel' },
-  { id:5, title:'Submit Express Entry profile',        done:false, priority:'high',   cat:'IRCC Submission',  due:'2026-03-20', client:'Maria Garcia' },
-];
-
 const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
 
 export default function Tasks() {
-  const [tasks, setTasks] = useState(SAMPLE_TASKS);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [catFilter, setCatFilter] = useState('all');
   const [showNew, setShowNew] = useState(false);
-  const [newTask, setNewTask] = useState({ title:'', priority:'medium', cat:'Other', due:'', client:'' });
+  const [clients, setClients] = useState([]);
+  const [newTask, setNewTask] = useState({ title:'', priority:'medium', category:'Other', due_date:'', client_id:'' });
+
+  useEffect(() => {
+    Promise.all([
+      api.getTasks(),
+      api.getClients().catch(() => []),
+    ]).then(([t, c]) => {
+      setTasks(t);
+      setClients(c);
+    }).finally(() => setLoading(false));
+  }, []);
 
   const filtered = tasks.filter(t => {
     if (filter === 'done' && !t.done) return false;
     if (filter === 'todo' && t.done) return false;
-    if (catFilter !== 'all' && t.cat !== catFilter) return false;
+    if (catFilter !== 'all' && t.category !== catFilter) return false;
     return true;
   });
 
-  function toggle(id) {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+  async function toggle(id) {
+    try {
+      await api.toggleTask(id);
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
+    } catch (e) { console.error(e); }
   }
 
-  function addTask() {
+  async function addTask() {
     if (!newTask.title.trim()) return;
-    setTasks(prev => [...prev, { ...newTask, id: Date.now(), done: false }]);
-    setNewTask({ title:'', priority:'medium', cat:'Other', due:'', client:'' });
-    setShowNew(false);
+    try {
+      const created = await api.createTask({
+        title: newTask.title,
+        priority: newTask.priority,
+        category: newTask.category,
+        due_date: newTask.due_date || null,
+        client_id: newTask.client_id || null,
+      });
+      setTasks(prev => [created, ...prev]);
+      setNewTask({ title:'', priority:'medium', category:'Other', due_date:'', client_id:'' });
+      setShowNew(false);
+    } catch (e) { console.error(e); }
   }
 
-  function deleteTask(id) {
-    setTasks(prev => prev.filter(t => t.id !== id));
+  async function deleteTask(id) {
+    try {
+      await api.deleteTask(id);
+      setTasks(prev => prev.filter(t => t.id !== id));
+    } catch (e) { console.error(e); }
   }
 
   const todo   = tasks.filter(t => !t.done).length;
   const done   = tasks.filter(t =>  t.done).length;
   const urgent = tasks.filter(t => !t.done && t.priority === 'high').length;
+
+  if (loading) return <div className="spinner-container"><div className="spinner" /></div>;
 
   return (
     <div className="page-enter">
@@ -109,9 +130,9 @@ export default function Tasks() {
                 <span className={`task-badge task-priority-${t.priority}`}>
                   <Circle size={8} fill={PRIORITY_COLORS[t.priority]} color={PRIORITY_COLORS[t.priority]} /> {t.priority.charAt(0).toUpperCase() + t.priority.slice(1)}
                 </span>
-                <span className="task-badge" style={{display:'flex',alignItems:'center',gap:4}}><FolderOpen size={12} /> {t.cat}</span>
+                <span className="task-badge" style={{display:'flex',alignItems:'center',gap:4}}><FolderOpen size={12} /> {t.category}</span>
                 {t.client && <span className="task-badge" style={{display:'flex',alignItems:'center',gap:4}}><User size={12} /> {t.client}</span>}
-                {t.due && <span className="task-badge" style={{display:'flex',alignItems:'center',gap:4}}><Calendar size={12} /> {new Date(t.due).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
+                {t.due_date && <span className="task-badge" style={{display:'flex',alignItems:'center',gap:4}}><Calendar size={12} /> {new Date(t.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
               </div>
             </div>
             <button className="btn btn-ghost btn-sm" style={{ color:'var(--accent-red)', background: 'rgba(239, 68, 68, 0.05)', border: 'none', padding: '8px 12px', display:'flex', alignItems:'center', gap:4 }} onClick={() => deleteTask(t.id)}><Trash2 size={14} /> Delete</button>
@@ -141,18 +162,20 @@ export default function Tasks() {
               </div>
               <div className="form-group">
                 <label className="form-label">Category</label>
-                <select className="form-select" value={newTask.cat} onChange={e => setNewTask({...newTask, cat:e.target.value})}>
+                <select className="form-select" value={newTask.category} onChange={e => setNewTask({...newTask, category:e.target.value})}>
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Due Date</label>
-                <input type="date" className="form-input" value={newTask.due} onChange={e => setNewTask({...newTask, due:e.target.value})} />
+                <input type="date" className="form-input" value={newTask.due_date} onChange={e => setNewTask({...newTask, due_date:e.target.value})} />
               </div>
               <div className="form-group">
-                <label className="form-label">Client Name</label>
-                <input className="form-input" placeholder="Client (optional)" value={newTask.client}
-                  onChange={e => setNewTask({...newTask, client:e.target.value})} />
+                <label className="form-label">Client</label>
+                <select className="form-select" value={newTask.client_id} onChange={e => setNewTask({...newTask, client_id:e.target.value})}>
+                  <option value="">No client</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+                </select>
               </div>
             </div>
             <div className="modal-footer">

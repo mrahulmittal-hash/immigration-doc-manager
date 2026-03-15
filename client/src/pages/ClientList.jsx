@@ -3,10 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import CaseLifecycle from '../components/CaseLifecycle';
 import NotesPanel from '../components/NotesPanel';
+import { PIPELINE_STAGES } from '../constants/stages';
 import {
   Search, Users, Trash2, CheckCircle, Mail, Clock, Globe, Plus,
   Phone, Pencil, Send, FileText, Key, PenTool, Calendar, ArrowRight,
-  Briefcase, ChevronDown
+  Briefcase, ChevronDown, Upload, AlertTriangle, ListChecks, MessageSquare, Zap
 } from 'lucide-react';
 
 const STATUS_OPTS = ['all', 'active', 'inactive'];
@@ -28,6 +29,25 @@ const VISA_TAG_COLORS = {
   'Work Permit (LMIA)':  { bg: '#f0fdfa', color: '#0d9488', border: '#99f6e4' },
 };
 
+function calcCompletion(client) {
+  let score = 0, total = 0;
+  // Checklist progress (50%)
+  if (client.checklist_progress?.total > 0) {
+    score += (client.checklist_progress.completed / client.checklist_progress.total) * 50;
+  }
+  total += 50;
+  // PIF (25%)
+  if (client.pif_status === 'completed') score += 25;
+  else if (client.pif_status === 'sent') score += 10;
+  total += 25;
+  // Documents (25%)
+  const docCount = client.documents?.length || 0;
+  if (docCount >= 5) score += 25;
+  else if (docCount > 0) score += (docCount / 5) * 25;
+  total += 25;
+  return Math.round((score / total) * 100);
+}
+
 export default function ClientList() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +57,7 @@ export default function ClientList() {
   const [selectedId, setSelectedId] = useState(null);
   const [selectedClient, setSelectedClient] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [deadlines, setDeadlines] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -51,10 +72,16 @@ export default function ClientList() {
   useEffect(() => {
     if (!selectedId) return;
     setDetailLoading(true);
-    api.getClient(selectedId)
-      .then(setSelectedClient)
-      .catch(() => setSelectedClient(null))
-      .finally(() => setDetailLoading(false));
+    Promise.all([
+      api.getClient(selectedId),
+      api.getDeadlines(selectedId).catch(() => []),
+    ]).then(([client, dl]) => {
+      setSelectedClient(client);
+      setDeadlines(dl.filter(d => d.status === 'pending').slice(0, 3));
+    }).catch(() => {
+      setSelectedClient(null);
+      setDeadlines([]);
+    }).finally(() => setDetailLoading(false));
   }, [selectedId]);
 
   const filtered = clients.filter(c => {
@@ -75,6 +102,16 @@ export default function ClientList() {
     const c = VISA_TAG_COLORS[visaType] || { bg: '#f3f4f6', color: '#6b7280', border: '#e5e7eb' };
     return { background: c.bg, color: c.color, border: `1px solid ${c.border}` };
   };
+
+  const stageBadge = (stage) => {
+    const s = PIPELINE_STAGES[stage] || PIPELINE_STAGES.lead;
+    return { background: s.bg, color: s.color, border: `1px solid ${s.color}33` };
+  };
+
+  function getDaysUntil(ds) { return Math.ceil((new Date(ds) - new Date()) / (1000 * 60 * 60 * 24)); }
+  function getUrgencyColor(days) { return days <= 0 ? '#ef4444' : days <= 7 ? '#f59e0b' : '#10b981'; }
+
+  const completion = selectedClient ? calcCompletion(selectedClient) : 0;
 
   return (
     <div className="clients-3panel">
@@ -116,6 +153,7 @@ export default function ClientList() {
           {filtered.map(c => {
             const isActive = c.id === selectedId;
             const pifMeta = PIF_META[c.pif_status] || PIF_META.pending;
+            const stage = PIPELINE_STAGES[c.pipeline_stage] || PIPELINE_STAGES.lead;
             return (
               <div
                 key={c.id}
@@ -131,9 +169,17 @@ export default function ClientList() {
                     {c.phone || c.email || 'No contact info'}
                   </div>
                 </div>
-                <span className="clients-item-badge" style={pifBadgeStyle(c.pif_status)}>
-                  {c.pif_status === 'completed' ? 'Done' : c.pif_status === 'sent' ? 'Sent' : 'New'}
-                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                  <span className="clients-item-badge" style={pifBadgeStyle(c.pif_status)}>
+                    {c.pif_status === 'completed' ? 'Done' : c.pif_status === 'sent' ? 'Sent' : 'New'}
+                  </span>
+                  <span className="clients-item-badge" style={{
+                    ...stageBadge(c.pipeline_stage),
+                    fontSize: 9, padding: '1px 6px',
+                  }}>
+                    {stage.label}
+                  </span>
+                </div>
               </div>
             );
           })}
@@ -188,11 +234,6 @@ export default function ClientList() {
                       </span>
                     )}
                   </div>
-                  {selectedClient.notes && (
-                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 12, lineHeight: 1.5, maxWidth: 600 }}>
-                      {selectedClient.notes}
-                    </div>
-                  )}
                 </div>
                 <button className="btn btn-secondary btn-sm"
                   style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
@@ -202,12 +243,97 @@ export default function ClientList() {
               </div>
             </div>
 
+            {/* Quick Actions Bar */}
+            <div style={{
+              display: 'flex', gap: 8, padding: '0 2px', flexWrap: 'wrap',
+            }}>
+              {[
+                { icon: Upload, label: 'Upload Doc', tab: 'documents' },
+                { icon: AlertTriangle, label: 'Add Deadline', tab: 'deadlines' },
+                { icon: MessageSquare, label: 'Add Note', tab: 'notes' },
+                { icon: ListChecks, label: 'Checklist', tab: 'checklist' },
+                { icon: Send, label: 'Send PIF', tab: 'pif' },
+                { icon: Users, label: 'Family', tab: 'family' },
+              ].map(a => (
+                <button key={a.tab} className="btn btn-secondary btn-sm"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '6px 10px' }}
+                  onClick={() => navigate(`/clients/${selectedClient.id}`)}>
+                  <a.icon size={13} /> {a.label}
+                </button>
+              ))}
+            </div>
+
             {/* Immigration Case Lifecycle */}
             <div className="clients-detail-card">
               <CaseLifecycle client={selectedClient} />
             </div>
 
-            {/* Communication / Notes */}
+            {/* Two-column: Deadlines + Checklist Progress */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              {/* Upcoming Deadlines */}
+              <div className="clients-detail-card" style={{ padding: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                  Upcoming Deadlines
+                </div>
+                {deadlines.length > 0 ? deadlines.map((dl, i) => {
+                  const days = getDaysUntil(dl.deadline_date);
+                  return (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0',
+                      borderBottom: i < deadlines.length - 1 ? '1px solid var(--border-light)' : 'none',
+                    }}>
+                      <div style={{ width: 3, height: 24, borderRadius: 2, background: getUrgencyColor(days), flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600 }}>{dl.title}</div>
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{dl.category}</div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: getUrgencyColor(days) }}>
+                        {days <= 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d`}
+                      </span>
+                    </div>
+                  );
+                }) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 12 }}>
+                    No upcoming deadlines
+                  </div>
+                )}
+              </div>
+
+              {/* Checklist Progress */}
+              <div className="clients-detail-card" style={{ padding: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                  Document Checklist
+                </div>
+                {selectedClient.checklist_progress?.total > 0 ? (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
+                      <span style={{ fontWeight: 600 }}>{selectedClient.checklist_progress.completed} / {selectedClient.checklist_progress.total} uploaded</span>
+                      <span style={{ fontWeight: 700, color: 'var(--primary)' }}>
+                        {Math.round((selectedClient.checklist_progress.completed / selectedClient.checklist_progress.total) * 100)}%
+                      </span>
+                    </div>
+                    <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', borderRadius: 4, transition: 'width 0.5s ease',
+                        background: 'linear-gradient(90deg, #10b981, #059669)',
+                        width: `${(selectedClient.checklist_progress.completed / selectedClient.checklist_progress.total) * 100}%`,
+                      }} />
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                      {selectedClient.checklist_progress.missing} missing
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 12 }}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/clients/${selectedClient.id}`)}>
+                      Initialize checklist
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Notes & Activity */}
             <div className="clients-detail-card">
               <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Notes & Activity</div>
               <NotesPanel clientId={selectedClient.id} compact />
@@ -220,6 +346,51 @@ export default function ClientList() {
       <div className="clients-context">
         {selectedClient && !detailLoading && (
           <>
+            {/* Case Completion */}
+            <div className="clients-ctx-section">
+              <div className="clients-ctx-label">CASE COMPLETION</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
+                <div style={{ position: 'relative', width: 60, height: 60 }}>
+                  <svg viewBox="0 0 36 36" style={{ width: 60, height: 60, transform: 'rotate(-90deg)' }}>
+                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--bg-elevated)" strokeWidth="3" />
+                    <circle cx="18" cy="18" r="15.5" fill="none"
+                      stroke={completion >= 75 ? '#10b981' : completion >= 40 ? '#f59e0b' : '#ef4444'}
+                      strokeWidth="3" strokeLinecap="round"
+                      strokeDasharray={`${completion * 0.975} 100`}
+                    />
+                  </svg>
+                  <div style={{
+                    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, fontWeight: 800, color: completion >= 75 ? '#10b981' : completion >= 40 ? '#f59e0b' : '#ef4444',
+                  }}>
+                    {completion}%
+                  </div>
+                </div>
+                <div style={{ fontSize: 12 }}>
+                  <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {completion >= 75 ? 'Almost complete' : completion >= 40 ? 'In progress' : 'Getting started'}
+                  </div>
+                  <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>
+                    Based on docs, PIF & checklist
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pipeline Stage */}
+            <div className="clients-ctx-section">
+              <div className="clients-ctx-label">PIPELINE STAGE</div>
+              <div style={{ marginTop: 4 }}>
+                <span style={{
+                  ...stageBadge(selectedClient.pipeline_stage),
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20,
+                }}>
+                  {(PIPELINE_STAGES[selectedClient.pipeline_stage] || PIPELINE_STAGES.lead).label}
+                </span>
+              </div>
+            </div>
+
             {/* Contact Info */}
             <div className="clients-ctx-section">
               <div className="clients-ctx-label">CONTACT INFO</div>
@@ -267,12 +438,12 @@ export default function ClientList() {
                 <strong>{selectedClient.forms?.length || 0}</strong>
               </div>
               <div className="clients-ctx-stat-row">
-                <span>Data Fields</span>
-                <strong>{selectedClient.client_data?.length || 0}</strong>
+                <span>Family Members</span>
+                <strong>{selectedClient.family_members?.length || 0}</strong>
               </div>
               <div className="clients-ctx-stat-row">
-                <span>Filled Forms</span>
-                <strong>{selectedClient.filled_forms?.length || 0}</strong>
+                <span>Deadlines</span>
+                <strong>{selectedClient.deadlines?.length || 0}</strong>
               </div>
               <div className="clients-ctx-stat-row">
                 <span>PIF Status</span>

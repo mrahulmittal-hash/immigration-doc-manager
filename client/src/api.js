@@ -185,4 +185,34 @@ export const api = {
     getPhotoDownloadUrl: (id) => `${API_BASE}/photos/${id}/download`,
     updatePhoto: (id, data) => request(`/photos/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deletePhoto: (id) => request(`/photos/${id}`, { method: 'DELETE' }),
+
+    // ── Family Members ─────────────────────────────────────
+    getFamilyMembers: (clientId) => request(`/clients/${clientId}/family`),
+    addFamilyMember: (clientId, data) => request(`/clients/${clientId}/family`, { method: 'POST', body: JSON.stringify(data) }),
+    updateFamilyMember: (id, data) => request(`/family/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteFamilyMember: (id) => request(`/family/${id}`, { method: 'DELETE' }),
+
+    // ── Tasks (DB-backed) ──────────────────────────────────
+    getTasks: (filter, category) => {
+      const p = new URLSearchParams();
+      if (filter) p.set('filter', filter);
+      if (category && category !== 'all') p.set('category', category);
+      return request(`/tasks?${p}`);
+    },
+    getTodayTasks: () => request('/tasks/today'),
+    createTask: (data) => request('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+    updateTask: (id, data) => request(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    toggleTask: (id) => request(`/tasks/${id}/toggle`, { method: 'PATCH' }),
+    deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
+
+    // ── Notifications ──────────────────────────────────────
+    getNotifications: () => request('/notifications'),
+    getNotificationCount: () => request('/notifications/count'),
+    generateNotifications: () => request('/notifications/generate', { method: 'POST' }),
+    markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'PATCH' }),
+    markAllNotificationsRead: () => request('/notifications/read-all', { method: 'PATCH' }),
+    dismissNotification: (id) => request(`/notifications/${id}`, { method: 'DELETE' }),
+
+    // ── Dashboard Today ────────────────────────────────────
+    getDashboardToday: () => request('/dashboard/today'),
 };

@@ -13,6 +13,7 @@ import IRCCFormGenerator from '../components/IRCCFormGenerator';
 import RetainerPanel from '../components/RetainerPanel';
 import EmployerLink from '../components/EmployerLink';
 import DependentsPanel from '../components/DependentsPanel';
+import FamilyMembers from '../components/FamilyMembers';
 import { Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key, CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap, Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks, Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck, CreditCard, Briefcase, Users, Camera, Paperclip } from 'lucide-react';
 
 const VISA_COLORS = {
@@ -45,6 +46,7 @@ const TABS = [
   { id: 'retainers', label: 'Retainers', Icon: CreditCard },
   { id: 'employer', label: 'Employer', Icon: Briefcase },
   { id: 'dependents', label: 'Dependents & Photos', Icon: Users },
+  { id: 'family', label: 'Family', Icon: Users },
 ];
 
 const CATEGORIES = ['general','passport','identity','education','employment','financial','medical','letter','other'];
@@ -668,6 +670,9 @@ export default function ClientDetail() {
       {activeTab === 'employer' && <EmployerLink clientId={id} />}
 
       {activeTab === 'dependents' && <DependentsPanel clientId={id} clientName={client ? `${client.first_name} ${client.last_name}` : ''} />}
+
+      {/* ── Family Tab ──────────────────────────────────── */}
+      {activeTab === 'family' && <FamilyMembers clientId={id} />}
 
       {/* ── Field Mapper Modal ───────────────────────────────── */}
       {showFieldMapper && formFieldsData && (

@@ -31,6 +31,9 @@ const employersRouter = require('./routes/employers');
 const retainersRouter = require('./routes/retainers');
 const lmiaRouter = require('./routes/lmia');
 const dependentsRouter = require('./routes/dependents');
+const familyRouter = require('./routes/family');
+const tasksRouter = require('./routes/tasks');
+const notificationsRouter = require('./routes/notifications');
 
 // Mount routes
 // Staff-facing routes protected by requireAuth (Cognito JWT or dev pass-through)
@@ -50,6 +53,9 @@ app.use('/api/employers', requireAuth, employersRouter);
 app.use('/api', requireAuth, retainersRouter);
 app.use('/api/lmia', requireAuth, lmiaRouter);
 app.use('/api', requireAuth, dependentsRouter);
+app.use('/api', requireAuth, familyRouter);
+app.use('/api', requireAuth, tasksRouter);
+app.use('/api', requireAuth, notificationsRouter);
 // PIF routes are PUBLIC (magic-link flow — no Cognito login required for clients)
 app.use('/api/pif', pifRouter);
 
@@ -84,6 +90,53 @@ app.get('/api/stats', async (req, res) => {
     } catch (err) {
         console.error('Error fetching stats:', err);
         res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+});
+
+// Dashboard Today endpoint
+app.get('/api/dashboard/today', async (req, res) => {
+    try {
+        const [todayTasks, birthdays, upcomingDeadlines] = await Promise.all([
+            // Tasks due today or overdue
+            prepareAll(
+                `SELECT t.*, c.first_name, c.last_name FROM tasks t
+                 LEFT JOIN clients c ON c.id = t.client_id
+                 WHERE t.done = false AND t.due_date IS NOT NULL AND t.due_date <= CURRENT_DATE + 7
+                 ORDER BY t.due_date ASC, t.priority DESC LIMIT 10`
+            ),
+            // Birthdays this week (match month+day)
+            prepareAll(
+                `SELECT id, first_name, last_name, date_of_birth, visa_type FROM clients
+                 WHERE status = 'active' AND date_of_birth IS NOT NULL
+                 AND EXTRACT(MONTH FROM date_of_birth::date) = EXTRACT(MONTH FROM CURRENT_DATE)
+                 AND EXTRACT(DAY FROM date_of_birth::date) BETWEEN EXTRACT(DAY FROM CURRENT_DATE) AND EXTRACT(DAY FROM CURRENT_DATE + 7)`
+            ),
+            // Critical deadlines (within 7 days)
+            prepareAll(
+                `SELECT d.*, c.first_name, c.last_name FROM client_deadlines d
+                 JOIN clients c ON c.id = d.client_id
+                 WHERE d.status = 'pending' AND d.deadline_date BETWEEN CURRENT_DATE - 3 AND CURRENT_DATE + 7
+                 ORDER BY d.deadline_date ASC LIMIT 10`
+            ),
+        ]);
+
+        // Anniversaries this week
+        const anniversaries = await prepareAll(
+            `SELECT id, first_name, last_name, approved_date, visa_type FROM clients
+             WHERE approved_date IS NOT NULL
+             AND EXTRACT(MONTH FROM approved_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+             AND EXTRACT(DAY FROM approved_date) BETWEEN EXTRACT(DAY FROM CURRENT_DATE) AND EXTRACT(DAY FROM CURRENT_DATE + 7)`
+        );
+
+        res.json({
+            tasks: todayTasks.map(t => ({ ...t, client: t.first_name ? `${t.first_name} ${t.last_name}` : null })),
+            birthdays: birthdays.map(b => ({ ...b, age: new Date().getFullYear() - new Date(b.date_of_birth).getFullYear() })),
+            anniversaries: anniversaries.map(a => ({ ...a, years: new Date().getFullYear() - new Date(a.approved_date).getFullYear() })),
+            deadlines: upcomingDeadlines,
+        });
+    } catch (err) {
+        console.error('Error fetching dashboard today:', err);
+        res.status(500).json({ error: 'Failed to fetch dashboard data' });
     }
 });
 

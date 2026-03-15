@@ -4,8 +4,10 @@ import { api } from '../api';
 import {
   Users, CheckCircle, Clock, FileText, Calendar, CreditCard,
   UserPlus, CheckSquare, ArrowRight, BarChart3, Newspaper, AlertTriangle,
-  Activity, Globe, GitBranch, Briefcase
+  Activity, Globe, GitBranch, Briefcase, Cake, Award, Circle, Check
 } from 'lucide-react';
+
+const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -13,6 +15,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [irccUpdates, setIrccUpdates] = useState([]);
   const [deadlines, setDeadlines] = useState([]);
+  const [todayData, setTodayData] = useState({ tasks: [], birthdays: [], anniversaries: [], deadlines: [] });
 
   useEffect(() => {
     Promise.all([
@@ -20,12 +23,14 @@ export default function Dashboard() {
       api.getClients(),
       api.getIRCCUpdates(null, 5).catch(() => []),
       api.getUpcomingDeadlines().catch(() => []),
+      api.getDashboardToday().catch(() => ({ tasks: [], birthdays: [], anniversaries: [], deadlines: [] })),
     ])
-      .then(([s, c, ircc, dl]) => {
+      .then(([s, c, ircc, dl, today]) => {
         setStats(s);
         setClients(c);
         setIrccUpdates(ircc);
         setDeadlines(dl);
+        setTodayData(today);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -43,10 +48,19 @@ export default function Dashboard() {
     return Math.ceil((new Date(ds) - now) / (1000 * 60 * 60 * 24));
   }
   function getUrgencyColor(days) {
-    if (days <= 7) return '#ef4444';
-    if (days <= 30) return '#f59e0b';
+    if (days <= 0) return '#ef4444';
+    if (days <= 7) return '#f59e0b';
     return '#10b981';
   }
+
+  const toggleTask = async (id) => {
+    try {
+      await api.toggleTask(id);
+      setTodayData(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, done: !t.done } : t) }));
+    } catch (e) { console.error(e); }
+  };
+
+  const hasTodayContent = todayData.tasks.length > 0 || todayData.birthdays.length > 0 || todayData.anniversaries.length > 0;
 
   return (
     <div className="page-enter" style={{ maxWidth: 1200, margin: '0 auto' }}>
@@ -69,14 +83,120 @@ export default function Dashboard() {
           <div key={s.label} className="dash-stat-card">
             <div className="dash-stat-accent" style={{ background: s.color }} />
             <div className="dash-stat-value" style={{ color: s.color }}>{s.value}</div>
-            {s.warn && <span style={{ position: 'absolute', top: 16, right: 16, fontSize: 14 }}>⚠</span>}
+            {s.warn && <span style={{ position: 'absolute', top: 16, right: 16, fontSize: 14 }}>!</span>}
             <div className="dash-stat-label">{s.label}</div>
           </div>
         ))}
       </div>
 
+      {/* ═══ TODAY'S OVERVIEW ═══ */}
+      {hasTodayContent && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>
+            TODAY'S OVERVIEW
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: todayData.birthdays.length > 0 || todayData.anniversaries.length > 0 ? '2fr 1fr' : '1fr', gap: 16 }}>
+            {/* Today's Tasks */}
+            {todayData.tasks.length > 0 && (
+              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700 }}>
+                    <CheckSquare size={16} color="var(--primary)" /> Tasks Due
+                  </div>
+                  <Link to="/tasks" className="btn btn-ghost btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>View All <ArrowRight size={12} /></Link>
+                </div>
+                {todayData.tasks.slice(0, 5).map(t => {
+                  const days = t.due_date ? getDaysUntil(t.due_date) : null;
+                  return (
+                    <div key={t.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px',
+                      borderBottom: '1px solid var(--border-light)',
+                    }}>
+                      <div
+                        style={{
+                          width: 22, height: 22, borderRadius: 6, flexShrink: 0, cursor: 'pointer',
+                          border: `2px solid ${t.done ? '#10b981' : PRIORITY_COLORS[t.priority] || '#9ca3af'}`,
+                          background: t.done ? '#10b981' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                        onClick={() => toggleTask(t.id)}
+                      >
+                        {t.done && <Check size={12} color="#fff" strokeWidth={3} />}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, textDecoration: t.done ? 'line-through' : 'none', color: t.done ? 'var(--text-muted)' : 'var(--text-primary)' }}>{t.title}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, marginTop: 2 }}>
+                          {t.client && <span>{t.client}</span>}
+                          <span style={{ fontWeight: 600, color: PRIORITY_COLORS[t.priority] }}>
+                            {t.priority}
+                          </span>
+                        </div>
+                      </div>
+                      {days !== null && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: getUrgencyColor(days) }}>
+                          {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d`}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Birthdays & Anniversaries */}
+            {(todayData.birthdays.length > 0 || todayData.anniversaries.length > 0) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {todayData.birthdays.length > 0 && (
+                  <div className="card" style={{ background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #fde68a' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Cake size={16} color="#fff" />
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#92400e' }}>Birthdays</div>
+                    </div>
+                    {todayData.birthdays.map(b => (
+                      <Link key={b.id} to={`/clients/${b.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', textDecoration: 'none', color: 'inherit', borderTop: '1px solid rgba(146,64,14,0.1)' }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(146,64,14,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#92400e' }}>
+                          {b.first_name[0]}{b.last_name[0]}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>{b.first_name} {b.last_name}</div>
+                          <div style={{ fontSize: 11, color: '#b45309' }}>Turning {b.age}</div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+                {todayData.anniversaries.length > 0 && (
+                  <div className="card" style={{ background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', border: '1px solid #ddd6fe' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Award size={16} color="#fff" />
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#5b21b6' }}>Case Anniversaries</div>
+                    </div>
+                    {todayData.anniversaries.map(a => (
+                      <Link key={a.id} to={`/clients/${a.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', textDecoration: 'none', color: 'inherit', borderTop: '1px solid rgba(91,33,182,0.1)' }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(91,33,182,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#5b21b6' }}>
+                          {a.first_name[0]}{a.last_name[0]}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#5b21b6' }}>{a.first_name} {a.last_name}</div>
+                          <div style={{ fontSize: 11, color: '#7c3aed' }}>{a.years} year(s) since approval</div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Workspace Cards */}
-      <div style={{ marginTop: 8 }}>
+      <div style={{ marginTop: 20 }}>
         <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>
           YOUR WORKSPACE
         </div>

@@ -22,6 +22,7 @@ import EmployerDetail from './pages/EmployerDetail';
 import LMIADashboard from './pages/LMIADashboard';
 import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
+import NotificationPanel from './components/NotificationPanel';
 import './index.css';
 
 const NAV_ITEMS = [
@@ -103,6 +104,7 @@ function TopNav({ user, onLogout }) {
       </div>
 
       <div className="topnav-right">
+        <NotificationPanel />
         <div className="topnav-user">
           <div className="topnav-user-avatar">{initials}</div>
           <div>

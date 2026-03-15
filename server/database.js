@@ -206,6 +206,58 @@ async function initDatabase() {
     // Add pipeline_stage column to clients
     await client.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS pipeline_stage TEXT DEFAULT 'lead'`);
 
+    // Add approved_date column for anniversary tracking
+    await client.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS approved_date DATE`);
+
+    // ── Family Members ──────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS family_members (
+        id                SERIAL PRIMARY KEY,
+        client_id         INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        relationship      TEXT NOT NULL,
+        first_name        TEXT NOT NULL,
+        last_name         TEXT NOT NULL,
+        date_of_birth     TEXT,
+        nationality       TEXT,
+        passport_number   TEXT,
+        immigration_status TEXT,
+        notes             TEXT,
+        created_at        TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Notifications ────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id              SERIAL PRIMARY KEY,
+        type            TEXT NOT NULL,
+        title           TEXT NOT NULL,
+        message         TEXT,
+        reference_type  TEXT,
+        reference_id    INTEGER,
+        is_read         BOOLEAN DEFAULT FALSE,
+        is_dismissed    BOOLEAN DEFAULT FALSE,
+        trigger_date    DATE NOT NULL,
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Tasks ────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id              SERIAL PRIMARY KEY,
+        client_id       INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+        title           TEXT NOT NULL,
+        priority        TEXT DEFAULT 'medium',
+        category        TEXT DEFAULT 'Other',
+        due_date        DATE,
+        done            BOOLEAN DEFAULT FALSE,
+        created_by      TEXT,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        completed_at    TIMESTAMPTZ
+      )
+    `);
+
     // Email Integration
     await client.query(`
       CREATE TABLE IF NOT EXISTS email_settings (
@@ -577,6 +629,49 @@ async function initDatabase() {
           VALUES ($1, 'LMIA Application Preparation — Restaurant Manager', 2500.00, 'paid', '2025-08-01', '2025-09-01')
         `, [wcId]);
       }
+
+      // Seed sample tasks
+      const taskAnishId = (await client.query("SELECT id FROM clients WHERE email = 'anish.sharma@gmail.com'")).rows[0]?.id;
+      const taskWeiId = (await client.query("SELECT id FROM clients WHERE email = 'wei.chen@outlook.com'")).rows[0]?.id;
+      const taskPhuongId = (await client.query("SELECT id FROM clients WHERE email = 'phuong.n@yahoo.com'")).rows[0]?.id;
+      const taskRajId = (await client.query("SELECT id FROM clients WHERE email = 'raj.patel@hotmail.com'")).rows[0]?.id;
+      const taskMariaId = (await client.query("SELECT id FROM clients WHERE email = 'maria.garcia@gmail.com'")).rows[0]?.id;
+
+      await client.query(`
+        INSERT INTO tasks (client_id, title, priority, category, due_date, done, created_by) VALUES
+        ($1, 'Send PIF to Anish Sharma', 'high', 'PIF', CURRENT_DATE, false, 'Admin'),
+        ($2, 'Review passport copies for W. Chen', 'high', 'Document Review', CURRENT_DATE + 1, false, 'Admin'),
+        ($3, 'Fill IMM5257 for P. Nguyen', 'medium', 'Form Filing', CURRENT_DATE + 3, false, 'Admin'),
+        ($4, 'Follow up on IELTS scores', 'medium', 'Client Follow-up', CURRENT_DATE - 1, true, 'Admin'),
+        ($5, 'Submit Express Entry profile', 'high', 'IRCC Submission', CURRENT_DATE + 5, false, 'Admin')
+      `, [taskAnishId, taskWeiId, taskPhuongId, taskRajId, taskMariaId]);
+
+      // Seed sample family members
+      if (taskPhuongId) {
+        await client.query(`
+          INSERT INTO family_members (client_id, relationship, first_name, last_name, date_of_birth, nationality, passport_number, immigration_status) VALUES
+          ($1, 'spouse', 'Michael', 'Nguyen', '1986-05-14', 'Canadian', 'HC1234567', 'citizen')
+        `, [taskPhuongId]);
+      }
+      if (taskAnishId) {
+        await client.query(`
+          INSERT INTO family_members (client_id, relationship, first_name, last_name, date_of_birth, nationality, passport_number, immigration_status) VALUES
+          ($1, 'spouse', 'Priya', 'Sharma', '1994-02-28', 'Indian', 'L5678901', 'work_permit'),
+          ($1, 'child', 'Aarav', 'Sharma', '2022-08-10', 'Indian', NULL, 'none')
+        `, [taskAnishId]);
+      }
+
+      // Set approved_date for James (case closed)
+      if (jamesId) {
+        await client.query(`UPDATE clients SET approved_date = '2025-11-15', pipeline_stage = 'approved' WHERE id = $1`, [jamesId]);
+      }
+      // Set pipeline stages for some clients
+      if (taskAnishId) await client.query(`UPDATE clients SET pipeline_stage = 'in_progress' WHERE id = $1`, [taskAnishId]);
+      if (taskWeiId) await client.query(`UPDATE clients SET pipeline_stage = 'consultation' WHERE id = $1`, [taskWeiId]);
+      if (taskPhuongId) await client.query(`UPDATE clients SET pipeline_stage = 'retainer_signed' WHERE id = $1`, [taskPhuongId]);
+      if (taskMariaId) await client.query(`UPDATE clients SET pipeline_stage = 'submitted' WHERE id = $1`, [taskMariaId]);
+
+      console.log('✅ Seeded tasks, family members, and pipeline stages');
 
       console.log('✅ Seeded employers, LMIA, retainers, and fees');
     }
