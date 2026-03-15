@@ -95,100 +95,201 @@ export default function Dashboard() {
           <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>
             TODAY'S OVERVIEW
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: todayData.birthdays.length > 0 || todayData.anniversaries.length > 0 ? '2fr 1fr' : '1fr', gap: 16 }}>
-            {/* Today's Tasks */}
-            {todayData.tasks.length > 0 && (
-              <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700 }}>
-                    <CheckSquare size={16} color="var(--primary)" /> Tasks Due
+
+          {/* ── Tasks Banner ────────────────────── */}
+          {todayData.tasks.length > 0 && (
+            <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                {/* Task count badge */}
+                <div style={{
+                  padding: '16px 20px', background: 'linear-gradient(135deg, var(--primary), #0d9488)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  minWidth: 90, gap: 2
+                }}>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1 }}>
+                    {todayData.tasks.filter(t => !t.done).length}
                   </div>
-                  <Link to="/tasks" className="btn btn-ghost btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>View All <ArrowRight size={12} /></Link>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Tasks Due
+                  </div>
                 </div>
-                {todayData.tasks.slice(0, 5).map(t => {
-                  const days = t.due_date ? getDaysUntil(t.due_date) : null;
-                  return (
-                    <div key={t.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px',
-                      borderBottom: '1px solid var(--border-light)',
-                    }}>
-                      <div
-                        style={{
-                          width: 22, height: 22, borderRadius: 6, flexShrink: 0, cursor: 'pointer',
-                          border: `2px solid ${t.done ? '#10b981' : PRIORITY_COLORS[t.priority] || '#9ca3af'}`,
-                          background: t.done ? '#10b981' : 'transparent',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                        onClick={() => toggleTask(t.id)}
-                      >
-                        {t.done && <Check size={12} color="#fff" strokeWidth={3} />}
+
+                {/* Scrolling marquee banner */}
+                <div style={{ flex: 1, overflow: 'hidden', padding: '0 16px', position: 'relative' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', height: 50 }}>
+                    <div className="dash-task-marquee">
+                      {todayData.tasks.filter(t => !t.done).map((t, i) => (
+                        <span key={t.id} className="dash-task-marquee-item">
+                          <Circle size={6} fill={PRIORITY_COLORS[t.priority]} color={PRIORITY_COLORS[t.priority]} style={{ flexShrink: 0 }} />
+                          <span style={{ fontWeight: 600 }}>{t.title}</span>
+                          {t.client && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>— {t.client}</span>}
+                          {t.due_date && (() => {
+                            const d = getDaysUntil(t.due_date);
+                            return <span style={{ fontSize: 10, fontWeight: 700, color: getUrgencyColor(d), background: `${getUrgencyColor(d)}15`, padding: '1px 6px', borderRadius: 4 }}>
+                              {d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? 'Today' : `in ${d}d`}
+                            </span>;
+                          })()}
+                          {i < todayData.tasks.filter(t2 => !t2.done).length - 1 && (
+                            <span style={{ color: 'var(--border)', margin: '0 8px' }}>│</span>
+                          )}
+                        </span>
+                      ))}
+                      {/* Duplicate for seamless loop */}
+                      {todayData.tasks.filter(t => !t.done).map((t, i) => (
+                        <span key={`dup-${t.id}`} className="dash-task-marquee-item">
+                          <Circle size={6} fill={PRIORITY_COLORS[t.priority]} color={PRIORITY_COLORS[t.priority]} style={{ flexShrink: 0 }} />
+                          <span style={{ fontWeight: 600 }}>{t.title}</span>
+                          {t.client && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>— {t.client}</span>}
+                          {t.due_date && (() => {
+                            const d = getDaysUntil(t.due_date);
+                            return <span style={{ fontSize: 10, fontWeight: 700, color: getUrgencyColor(d), background: `${getUrgencyColor(d)}15`, padding: '1px 6px', borderRadius: 4 }}>
+                              {d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? 'Today' : `in ${d}d`}
+                            </span>;
+                          })()}
+                          {i < todayData.tasks.filter(t2 => !t2.done).length - 1 && (
+                            <span style={{ color: 'var(--border)', margin: '0 8px' }}>│</span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* View All button */}
+                <Link to="/tasks" className="btn btn-primary btn-sm" style={{ margin: '0 16px', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', padding: '8px 16px' }}>
+                  View All Tasks <ArrowRight size={14} />
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* ── Subsection Cards Grid ───────────────────── */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+
+            {/* Birthdays Card */}
+            {todayData.birthdays.length > 0 && (
+              <div className="card" style={{ background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #fde68a', padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(251,191,36,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Cake size={16} color="#fff" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#92400e' }}>🎂 Birthdays This Week</div>
+                      <div style={{ fontSize: 11, color: '#b45309' }}>{todayData.birthdays.length} client{todayData.birthdays.length > 1 ? 's' : ''}</div>
+                    </div>
+                  </div>
+                </div>
+                {todayData.birthdays.map(b => (
+                  <div key={b.id} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(251,191,36,0.15)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(146,64,14,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#92400e' }}>
+                        {b.first_name[0]}{b.last_name[0]}
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, textDecoration: t.done ? 'line-through' : 'none', color: t.done ? 'var(--text-muted)' : 'var(--text-primary)' }}>{t.title}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, marginTop: 2 }}>
-                          {t.client && <span>{t.client}</span>}
-                          <span style={{ fontWeight: 600, color: PRIORITY_COLORS[t.priority] }}>
-                            {t.priority}
-                          </span>
-                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>{b.first_name} {b.last_name}</div>
+                        <div style={{ fontSize: 11, color: '#b45309' }}>Turning {b.age} · {b.visa_type || 'Client'}</div>
                       </div>
-                      {days !== null && (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: getUrgencyColor(days) }}>
-                          {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d`}
-                        </span>
-                      )}
                     </div>
-                  );
-                })}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Link to={`/clients/${b.id}`} style={{ fontSize: 11, fontWeight: 600, color: '#92400e', background: 'rgba(146,64,14,0.1)', padding: '4px 10px', borderRadius: 6, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Users size={11} /> View Profile
+                      </Link>
+                      <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, fontWeight: 600, color: '#92400e', background: 'rgba(251,191,36,0.2)', padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                        onClick={() => window.open(`mailto:${b.email || ''}?subject=Happy Birthday ${b.first_name}!&body=Dear ${b.first_name},%0D%0A%0D%0AWishing you a very Happy Birthday! 🎂%0D%0A%0D%0ABest regards`, '_blank')}>
+                        <Cake size={11} /> Send Wishes
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Birthdays & Anniversaries */}
-            {(todayData.birthdays.length > 0 || todayData.anniversaries.length > 0) && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {todayData.birthdays.length > 0 && (
-                  <div className="card" style={{ background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #fde68a' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fbbf24', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Cake size={16} color="#fff" />
-                      </div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: '#92400e' }}>Birthdays</div>
+            {/* Anniversaries Card */}
+            {todayData.anniversaries.length > 0 && (
+              <div className="card" style={{ background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', border: '1px solid #ddd6fe', padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(139,92,246,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Award size={16} color="#fff" />
                     </div>
-                    {todayData.birthdays.map(b => (
-                      <Link key={b.id} to={`/clients/${b.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', textDecoration: 'none', color: 'inherit', borderTop: '1px solid rgba(146,64,14,0.1)' }}>
-                        <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(146,64,14,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#92400e' }}>
-                          {b.first_name[0]}{b.last_name[0]}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>{b.first_name} {b.last_name}</div>
-                          <div style={{ fontSize: 11, color: '#b45309' }}>Turning {b.age}</div>
-                        </div>
-                      </Link>
-                    ))}
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#5b21b6' }}>🏆 Case Anniversaries</div>
+                      <div style={{ fontSize: 11, color: '#7c3aed' }}>{todayData.anniversaries.length} client{todayData.anniversaries.length > 1 ? 's' : ''}</div>
+                    </div>
                   </div>
-                )}
+                </div>
+                {todayData.anniversaries.map(a => (
+                  <div key={a.id} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(139,92,246,0.1)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: 'rgba(91,33,182,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#5b21b6' }}>
+                        {a.first_name[0]}{a.last_name[0]}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#5b21b6' }}>{a.first_name} {a.last_name}</div>
+                        <div style={{ fontSize: 11, color: '#7c3aed' }}>{a.years} year{a.years > 1 ? 's' : ''} since approval · {a.visa_type || 'Immigration Case'}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Link to={`/clients/${a.id}`} style={{ fontSize: 11, fontWeight: 600, color: '#5b21b6', background: 'rgba(91,33,182,0.1)', padding: '4px 10px', borderRadius: 6, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Users size={11} /> View Profile
+                      </Link>
+                      <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, fontWeight: 600, color: '#5b21b6', background: 'rgba(139,92,246,0.15)', padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                        onClick={() => window.open(`mailto:${a.email || ''}?subject=Congratulations on your ${a.years}-year Anniversary!&body=Dear ${a.first_name},%0D%0A%0D%0ACongratulations on your ${a.years}-year immigration approval anniversary! 🏆%0D%0A%0D%0ABest regards`, '_blank')}>
+                        <Award size={11} /> Send Congratulations
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-                {todayData.anniversaries.length > 0 && (
-                  <div className="card" style={{ background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)', border: '1px solid #ddd6fe' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Award size={16} color="#fff" />
-                      </div>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: '#5b21b6' }}>Case Anniversaries</div>
+            {/* Critical Deadlines Card */}
+            {todayData.deadlines.length > 0 && (
+              <div className="card" style={{ background: 'linear-gradient(135deg, #fff5f5, #fee2e2)', border: '1px solid #fecaca', padding: 0, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: 8, background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <AlertTriangle size={16} color="#fff" />
                     </div>
-                    {todayData.anniversaries.map(a => (
-                      <Link key={a.id} to={`/clients/${a.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', textDecoration: 'none', color: 'inherit', borderTop: '1px solid rgba(91,33,182,0.1)' }}>
-                        <div style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(91,33,182,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#5b21b6' }}>
-                          {a.first_name[0]}{a.last_name[0]}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#5b21b6' }}>{a.first_name} {a.last_name}</div>
-                          <div style={{ fontSize: 11, color: '#7c3aed' }}>{a.years} year(s) since approval</div>
-                        </div>
-                      </Link>
-                    ))}
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#991b1b' }}>⚠️ Critical Deadlines</div>
+                      <div style={{ fontSize: 11, color: '#dc2626' }}>{todayData.deadlines.length} deadline{todayData.deadlines.length > 1 ? 's' : ''} this week</div>
+                    </div>
                   </div>
-                )}
+                </div>
+                {todayData.deadlines.map(dl => {
+                  const days = getDaysUntil(dl.deadline_date);
+                  return (
+                    <div key={dl.id} style={{ padding: '12px 18px', borderBottom: '1px solid rgba(239,68,68,0.1)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                        <div style={{ width: 4, height: 36, borderRadius: 2, background: getUrgencyColor(days), flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#991b1b' }}>{dl.title}</div>
+                          <div style={{ fontSize: 11, color: '#dc2626' }}>
+                            {dl.first_name} {dl.last_name} · {new Date(dl.deadline_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </div>
+                        </div>
+                        <span style={{
+                          fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 6,
+                          color: getUrgencyColor(days),
+                          background: `${getUrgencyColor(days)}18`,
+                        }}>
+                          {days < 0 ? `${Math.abs(days)}d OVERDUE` : days === 0 ? 'TODAY' : `${days}d left`}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <Link to={`/clients/${dl.client_id}`} style={{ fontSize: 11, fontWeight: 600, color: '#991b1b', background: 'rgba(239,68,68,0.1)', padding: '4px 10px', borderRadius: 6, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <FileText size={11} /> Open Case
+                        </Link>
+                        <button className="btn btn-ghost btn-sm" style={{ fontSize: 11, fontWeight: 600, color: '#991b1b', background: 'rgba(239,68,68,0.08)', padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                          onClick={() => window.open(`mailto:?subject=Deadline Reminder: ${dl.title}&body=Dear ${dl.first_name},%0D%0A%0D%0AThis is a reminder about the upcoming deadline: ${dl.title}%0D%0ADeadline Date: ${new Date(dl.deadline_date).toLocaleDateString()}%0D%0A%0D%0APlease ensure all required documents are submitted on time.%0D%0A%0D%0ABest regards`, '_blank')}>
+                          <Calendar size={11} /> Notify Client
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

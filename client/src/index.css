@@ -2268,6 +2268,29 @@ td strong { color: var(--text-primary); }
   position: absolute; top: 0; left: 0; width: 100%; height: 3px;
 }
 
+/* Dashboard Task Marquee Banner */
+.dash-task-marquee {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  animation: dash-marquee-scroll 20s linear infinite;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.dash-task-marquee:hover {
+  animation-play-state: paused;
+}
+.dash-task-marquee-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+@keyframes dash-marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 /* ============================================================
    File Upload / Drag & Drop
    ============================================================ */
