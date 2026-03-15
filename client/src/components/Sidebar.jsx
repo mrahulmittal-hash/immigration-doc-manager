@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, GitBranch, Users, CheckSquare, Calendar, CreditCard, FolderOpen, FileText, UserCog, Settings, ChevronLeft, ChevronRight, Newspaper, Mail } from 'lucide-react';
+import { LayoutDashboard, GitBranch, Users, CheckSquare, Calendar, CreditCard, FolderOpen, FileText, UserCog, Settings, ChevronLeft, ChevronRight, Newspaper, Mail, Building2, FileSearch } from 'lucide-react';
 
 const navItems = [
   {
@@ -16,6 +16,7 @@ const navItems = [
       { to: '/clients',  icon: Users, label: 'Clients' },
       { to: '/tasks',    icon: CheckSquare, label: 'Tasks' },
       { to: '/calendar', icon: Calendar, label: 'Calendar' },
+      { to: '/employers', icon: Building2, label: 'Employers' },
     ]
   },
   {
@@ -28,6 +29,7 @@ const navItems = [
     section: 'Immigration',
     links: [
       { to: '/ircc-updates', icon: Newspaper, label: 'IRCC Updates' },
+      { to: '/lmia', icon: FileSearch, label: 'LMIA Tracker' },
     ]
   },
   {

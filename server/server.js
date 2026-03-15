@@ -27,6 +27,9 @@ const deadlinesRouter = require('./routes/deadlines');
 const checklistsRouter = require('./routes/checklists');
 const emailsRouter = require('./routes/emails');
 const irccFormsRouter = require('./routes/irccForms');
+const employersRouter = require('./routes/employers');
+const retainersRouter = require('./routes/retainers');
+const lmiaRouter = require('./routes/lmia');
 
 // Mount routes
 // Staff-facing routes protected by requireAuth (Cognito JWT or dev pass-through)
@@ -42,6 +45,9 @@ app.use('/api', requireAuth, deadlinesRouter);
 app.use('/api', requireAuth, checklistsRouter);
 app.use('/api', requireAuth, emailsRouter);
 app.use('/api', requireAuth, irccFormsRouter);
+app.use('/api/employers', requireAuth, employersRouter);
+app.use('/api', requireAuth, retainersRouter);
+app.use('/api/lmia', requireAuth, lmiaRouter);
 // PIF routes are PUBLIC (magic-link flow — no Cognito login required for clients)
 app.use('/api/pif', pifRouter);
 

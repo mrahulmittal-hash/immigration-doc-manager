@@ -344,6 +344,203 @@ async function initDatabase() {
       console.log('✅ Seeded document checklists');
     }
 
+    // ── Employers ──────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS employers (
+        id              SERIAL PRIMARY KEY,
+        company_name    TEXT NOT NULL,
+        trade_name      TEXT,
+        business_number TEXT,
+        contact_name    TEXT,
+        contact_email   TEXT,
+        contact_phone   TEXT,
+        address         TEXT,
+        city            TEXT,
+        province        TEXT,
+        postal_code     TEXT,
+        industry        TEXT,
+        num_employees   INTEGER,
+        notes           TEXT,
+        status          TEXT DEFAULT 'active',
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Retainers ──────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS retainers (
+        id              SERIAL PRIMARY KEY,
+        client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        service_type    TEXT NOT NULL,
+        retainer_fee    NUMERIC(10,2) NOT NULL DEFAULT 0,
+        amount_paid     NUMERIC(10,2) NOT NULL DEFAULT 0,
+        status          TEXT DEFAULT 'pending',
+        due_date        DATE,
+        signed_date     DATE,
+        notes           TEXT,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Payments ───────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id               SERIAL PRIMARY KEY,
+        retainer_id      INTEGER NOT NULL REFERENCES retainers(id) ON DELETE CASCADE,
+        client_id        INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        amount           NUMERIC(10,2) NOT NULL,
+        payment_method   TEXT,
+        payment_date     DATE NOT NULL DEFAULT CURRENT_DATE,
+        reference_number TEXT,
+        notes            TEXT,
+        created_at       TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── LMIA Applications ──────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS lmia_applications (
+        id              SERIAL PRIMARY KEY,
+        employer_id     INTEGER NOT NULL REFERENCES employers(id) ON DELETE CASCADE,
+        client_id       INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+        job_title       TEXT NOT NULL,
+        noc_code        TEXT,
+        teer_category   TEXT,
+        wage_offered    NUMERIC(10,2),
+        wage_type       TEXT DEFAULT 'hourly',
+        work_location   TEXT,
+        num_positions   INTEGER DEFAULT 1,
+        lmia_number     TEXT,
+        stream          TEXT DEFAULT 'high_wage',
+        status          TEXT DEFAULT 'draft',
+        submission_date DATE,
+        decision_date   DATE,
+        expiry_date     DATE,
+        job_duties      TEXT,
+        transition_plan TEXT,
+        notes           TEXT,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        updated_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Job Bank Ads ───────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS job_bank_ads (
+        id              SERIAL PRIMARY KEY,
+        lmia_id         INTEGER NOT NULL REFERENCES lmia_applications(id) ON DELETE CASCADE,
+        employer_id     INTEGER NOT NULL REFERENCES employers(id) ON DELETE CASCADE,
+        job_bank_id     TEXT,
+        job_title       TEXT NOT NULL,
+        noc_code        TEXT,
+        posting_date    DATE NOT NULL,
+        expiry_date     DATE,
+        posting_url     TEXT,
+        status          TEXT DEFAULT 'active',
+        min_weeks       INTEGER DEFAULT 4,
+        additional_ads  JSONB DEFAULT '[]',
+        notes           TEXT,
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Employer Fees ──────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS employer_fees (
+        id              SERIAL PRIMARY KEY,
+        employer_id     INTEGER NOT NULL REFERENCES employers(id) ON DELETE CASCADE,
+        lmia_id         INTEGER REFERENCES lmia_applications(id) ON DELETE SET NULL,
+        description     TEXT NOT NULL,
+        amount          NUMERIC(10,2) NOT NULL,
+        status          TEXT DEFAULT 'unpaid',
+        invoice_date    DATE DEFAULT CURRENT_DATE,
+        due_date        DATE,
+        paid_date       DATE,
+        notes           TEXT,
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Employer-Client Junction ───────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS employer_clients (
+        id              SERIAL PRIMARY KEY,
+        employer_id     INTEGER NOT NULL REFERENCES employers(id) ON DELETE CASCADE,
+        client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        job_title       TEXT,
+        start_date      DATE,
+        wage            NUMERIC(10,2),
+        wage_type       TEXT DEFAULT 'hourly',
+        status          TEXT DEFAULT 'active',
+        lmia_id         INTEGER REFERENCES lmia_applications(id) ON DELETE SET NULL,
+        notes           TEXT,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(employer_id, client_id)
+      )
+    `);
+
+    // Seed sample employers
+    const empExists = await client.query("SELECT COUNT(*) as cnt FROM employers");
+    if (parseInt(empExists.rows[0].cnt) === 0) {
+      await client.query(`
+        INSERT INTO employers (company_name, trade_name, business_number, contact_name, contact_email, contact_phone, address, city, province, postal_code, industry, num_employees, status)
+        VALUES
+        ('TechNova Solutions Inc.', 'TechNova', '123456789RC0001', 'Michael Torres', 'michael@technova.ca', '+1 (604) 555-0500', '1200 West Georgia St, Suite 800', 'Vancouver', 'BC', 'V6E 4A2', 'Technology', 150, 'active'),
+        ('West Coast Dining Inc.', 'West Coast Dining', '987654321RC0001', 'Patricia Wong', 'patricia@westcoastdining.ca', '+1 (604) 555-0600', '456 Robson St', 'Vancouver', 'BC', 'V6B 2B5', 'Food & Hospitality', 45, 'active')
+      `);
+
+      // Link James O'Brien to West Coast Dining with an LMIA
+      const jamesId = (await client.query("SELECT id FROM clients WHERE email = 'james.obrien@icloud.com'")).rows[0]?.id;
+      const wcId = (await client.query("SELECT id FROM employers WHERE company_name = 'West Coast Dining Inc.'")).rows[0]?.id;
+      if (jamesId && wcId) {
+        const lmiaResult = await client.query(`
+          INSERT INTO lmia_applications (employer_id, client_id, job_title, noc_code, teer_category, wage_offered, wage_type, work_location, stream, status, lmia_number, submission_date, decision_date, expiry_date, notes)
+          VALUES ($1, $2, 'Restaurant Manager', '60030', 'TEER 0', 28.50, 'hourly', 'Vancouver, BC', 'high_wage', 'approved', 'M1234567', '2025-08-15', '2025-10-01', '2026-04-01', 'LMIA approved — work permit issued')
+          RETURNING id
+        `, [wcId, jamesId]);
+        const lmiaId = lmiaResult.rows[0].id;
+
+        await client.query(`
+          INSERT INTO employer_clients (employer_id, client_id, job_title, start_date, wage, wage_type, status, lmia_id)
+          VALUES ($1, $2, 'Restaurant Manager', '2025-11-01', 28.50, 'hourly', 'active', $3)
+        `, [wcId, jamesId, lmiaId]);
+
+        await client.query(`
+          INSERT INTO job_bank_ads (lmia_id, employer_id, job_bank_id, job_title, noc_code, posting_date, expiry_date, posting_url, status, additional_ads)
+          VALUES ($1, $2, 'JB-2025-4567890', 'Restaurant Manager', '60030', '2025-07-01', '2025-08-01', 'https://www.jobbank.gc.ca/jobsearch/jobposting/4567890', 'completed',
+            '[{"platform":"Indeed","url":"https://indeed.com/job/12345","posting_date":"2025-07-01","expiry_date":"2025-08-01"}]')
+        `, [lmiaId, wcId]);
+      }
+
+      // Seed sample retainers
+      const anishRetId = (await client.query("SELECT id FROM clients WHERE email = 'anish.sharma@gmail.com'")).rows[0]?.id;
+      const weiRetId = (await client.query("SELECT id FROM clients WHERE email = 'wei.chen@outlook.com'")).rows[0]?.id;
+      if (anishRetId) {
+        await client.query(`
+          INSERT INTO retainers (client_id, service_type, retainer_fee, amount_paid, status, due_date, signed_date)
+          VALUES ($1, 'Express Entry Application', 5000.00, 5000.00, 'paid', '2025-12-01', '2025-10-15')
+        `, [anishRetId]);
+      }
+      if (weiRetId) {
+        await client.query(`
+          INSERT INTO retainers (client_id, service_type, retainer_fee, amount_paid, status, due_date, signed_date)
+          VALUES ($1, 'Study Permit Application', 3500.00, 1500.00, 'partial', '2026-04-01', '2026-01-10')
+        `, [weiRetId]);
+      }
+
+      // Seed employer fee
+      if (wcId) {
+        await client.query(`
+          INSERT INTO employer_fees (employer_id, description, amount, status, invoice_date, due_date)
+          VALUES ($1, 'LMIA Application Preparation — Restaurant Manager', 2500.00, 'paid', '2025-08-01', '2025-09-01')
+        `, [wcId]);
+      }
+
+      console.log('✅ Seeded employers, LMIA, retainers, and fees');
+    }
+
     console.log('✅ PostgreSQL database initialized successfully');
   } finally {
     client.release();

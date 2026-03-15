@@ -113,4 +113,52 @@ export const api = {
     verifyPIFData: (clientId) => request(`/pif/data/${clientId}/verify`, { method: 'POST' }),
     updatePIFData: (clientId, formData) => request(`/pif/data/${clientId}`, { method: 'PUT', body: JSON.stringify({ form_data: formData }) }),
     getPIFOcrData: (clientId) => request(`/pif/data/${clientId}/ocr`),
+
+    // ── Employers ────────────────────────────────────────────
+    getEmployers: (search, status) => {
+      const p = new URLSearchParams();
+      if (search) p.set('search', search);
+      if (status) p.set('status', status);
+      return request(`/employers?${p}`);
+    },
+    getEmployer: (id) => request(`/employers/${id}`),
+    createEmployer: (data) => request('/employers', { method: 'POST', body: JSON.stringify(data) }),
+    updateEmployer: (id, data) => request(`/employers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteEmployer: (id) => request(`/employers/${id}`, { method: 'DELETE' }),
+    getEmployerClients: (id) => request(`/employers/${id}/clients`),
+    linkClientToEmployer: (empId, data) => request(`/employers/${empId}/clients`, { method: 'POST', body: JSON.stringify(data) }),
+    unlinkClientFromEmployer: (empId, clientId) => request(`/employers/${empId}/clients/${clientId}`, { method: 'DELETE' }),
+    getEmployerFees: (id) => request(`/employers/${id}/fees`),
+    createEmployerFee: (empId, data) => request(`/employers/${empId}/fees`, { method: 'POST', body: JSON.stringify(data) }),
+    updateEmployerFee: (id, data) => request(`/employers/fees/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteEmployerFee: (id) => request(`/employers/fees/${id}`, { method: 'DELETE' }),
+
+    // ── Retainers ────────────────────────────────────────────
+    getRetainers: (status) => request(`/retainers${status ? `?status=${status}` : ''}`),
+    getRetainerStats: () => request('/retainers-stats'),
+    getClientRetainers: (clientId) => request(`/clients/${clientId}/retainers`),
+    createRetainer: (clientId, data) => request(`/clients/${clientId}/retainers`, { method: 'POST', body: JSON.stringify(data) }),
+    updateRetainer: (id, data) => request(`/retainers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteRetainer: (id) => request(`/retainers/${id}`, { method: 'DELETE' }),
+    getPayments: (retainerId) => request(`/retainers/${retainerId}/payments`),
+    recordPayment: (retainerId, data) => request(`/retainers/${retainerId}/payments`, { method: 'POST', body: JSON.stringify(data) }),
+    deletePayment: (id) => request(`/payments/${id}`, { method: 'DELETE' }),
+
+    // ── LMIA ─────────────────────────────────────────────────
+    getLMIAs: (status, employerId) => {
+      const p = new URLSearchParams();
+      if (status) p.set('status', status);
+      if (employerId) p.set('employer_id', employerId);
+      return request(`/lmia?${p}`);
+    },
+    getLMIA: (id) => request(`/lmia/${id}`),
+    createLMIA: (data) => request('/lmia', { method: 'POST', body: JSON.stringify(data) }),
+    updateLMIA: (id, data) => request(`/lmia/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    updateLMIAStatus: (id, status) => request(`/lmia/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+    deleteLMIA: (id) => request(`/lmia/${id}`, { method: 'DELETE' }),
+    getLMIAStats: () => request('/lmia/stats/summary'),
+    getJobAds: (lmiaId) => request(`/lmia/${lmiaId}/ads`),
+    createJobAd: (lmiaId, data) => request(`/lmia/${lmiaId}/ads`, { method: 'POST', body: JSON.stringify(data) }),
+    updateJobAd: (id, data) => request(`/lmia/ads/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteJobAd: (id) => request(`/lmia/ads/${id}`, { method: 'DELETE' }),
 };

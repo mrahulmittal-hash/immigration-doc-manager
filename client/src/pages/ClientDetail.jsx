@@ -10,7 +10,9 @@ import DeadlineTracker from '../components/DeadlineTracker';
 import DocumentChecklist from '../components/DocumentChecklist';
 import EmailList from '../components/EmailList';
 import IRCCFormGenerator from '../components/IRCCFormGenerator';
-import { Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key, CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap, Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks, Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck } from 'lucide-react';
+import RetainerPanel from '../components/RetainerPanel';
+import EmployerLink from '../components/EmployerLink';
+import { Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key, CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap, Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks, Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck, CreditCard, Briefcase } from 'lucide-react';
 
 const VISA_COLORS = {
   'Express Entry':        'badge-primary',
@@ -39,6 +41,8 @@ const TABS = [
   { id: 'checklist', label: 'Doc Checklist', Icon: ListChecks },
   { id: 'emails',    label: 'Emails',        Icon: Inbox },
   { id: 'ircc-forms', label: 'IRCC Forms',  Icon: Stamp },
+  { id: 'retainers', label: 'Retainers', Icon: CreditCard },
+  { id: 'employer', label: 'Employer', Icon: Briefcase },
 ];
 
 const CATEGORIES = ['general','passport','identity','education','employment','financial','medical','letter','other'];
@@ -610,6 +614,12 @@ export default function ClientDetail() {
 
       {/* ── IRCC Forms Tab ────────────────────────────────── */}
       {activeTab === 'ircc-forms' && <IRCCFormGenerator clientId={id} />}
+
+      {/* ── Retainers Tab ────────────────────────────────── */}
+      {activeTab === 'retainers' && <RetainerPanel clientId={id} />}
+
+      {/* ── Employer Tab ────────────────────────────────── */}
+      {activeTab === 'employer' && <EmployerLink clientId={id} />}
 
       {/* ── Field Mapper Modal ───────────────────────────────── */}
       {showFieldMapper && formFieldsData && (

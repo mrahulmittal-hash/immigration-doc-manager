@@ -108,14 +108,18 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ error: 'Client not found' });
         }
 
-        const [documents, forms, clientData, filledForms] = await Promise.all([
+        const [documents, forms, clientData, filledForms, retainers, employerLinks] = await Promise.all([
             prepareAll('SELECT * FROM documents WHERE client_id = ? ORDER BY uploaded_at DESC', client.id),
             prepareAll('SELECT * FROM forms WHERE client_id = ? ORDER BY uploaded_at DESC', client.id),
             prepareAll('SELECT * FROM client_data WHERE client_id = ? ORDER BY field_key', client.id),
             prepareAll('SELECT * FROM filled_forms WHERE client_id = ? ORDER BY filled_at DESC', client.id),
+            prepareAll('SELECT * FROM retainers WHERE client_id = ? ORDER BY created_at DESC', client.id),
+            prepareAll(`SELECT ec.*, e.company_name, e.contact_name, e.contact_email, e.industry
+                        FROM employer_clients ec JOIN employers e ON e.id = ec.employer_id
+                        WHERE ec.client_id = ? ORDER BY ec.created_at DESC`, client.id),
         ]);
 
-        res.json({ ...client, documents, forms, client_data: clientData, filled_forms: filledForms });
+        res.json({ ...client, documents, forms, client_data: clientData, filled_forms: filledForms, retainers, employer_links: employerLinks });
     } catch (err) {
         console.error('Error fetching client:', err);
         res.status(500).json({ error: 'Failed to fetch client' });
