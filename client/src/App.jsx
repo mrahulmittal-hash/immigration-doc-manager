@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Search, Bell, MessageSquare } from 'lucide-react';
-import Sidebar from './components/Sidebar';
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
+import {
+  LayoutDashboard, Users, GitBranch, CheckSquare, Calendar, CreditCard,
+  Newspaper, UserCog, Mail, Search, Bell, MessageSquare, LogOut, ChevronDown,
+  FileText, Settings
+} from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Pipeline from './pages/Pipeline';
 import ClientList from './pages/ClientList';
@@ -21,51 +24,106 @@ import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
 import './index.css';
 
-const BREADCRUMBS = {
-  '/': 'Dashboard',
-  '/pipeline': 'Pipeline',
-  '/clients': 'Clients',
-  '/clients/new': 'New Client',
-  '/tasks': 'Tasks',
-  '/calendar': 'Calendar',
-  '/retainers': 'Retainers',
-  '/users': 'User Management',
-  '/ircc-updates': 'IRCC Updates',
-  '/settings/email': 'Email Integration',
-};
+const NAV_ITEMS = [
+  { to: '/',             icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { to: '/clients',      icon: Users,           label: 'Clients' },
+  { to: '/pipeline',     icon: GitBranch,       label: 'Pipeline' },
+  { to: '/tasks',        icon: CheckSquare,     label: 'Tasks' },
+  { to: '/calendar',     icon: Calendar,        label: 'Calendar' },
+];
 
-function Breadcrumb() {
+const MORE_ITEMS = [
+  { to: '/retainers',    icon: CreditCard,  label: 'Retainers' },
+  { to: '/ircc-updates', icon: Newspaper,   label: 'IRCC Updates' },
+  { to: '/users',        icon: UserCog,     label: 'Users' },
+  { to: '/settings/email', icon: Mail,      label: 'Email Settings' },
+];
+
+function TopNav({ user, onLogout }) {
+  const [showMore, setShowMore] = useState(false);
   const location = useLocation();
-  const path = location.pathname;
-  const label = BREADCRUMBS[path] || (path.startsWith('/clients/') ? 'Client Detail' : 'Dashboard');
-  return <div className="topbar-title">{label}</div>;
+  const initials = user?.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'DU';
+
+  // Close more menu on route change
+  useEffect(() => { setShowMore(false); }, [location.pathname]);
+
+  return (
+    <nav className="topnav">
+      <NavLink to="/" className="topnav-brand">
+        <div className="topnav-logo">P</div>
+        <span className="topnav-title">PropAgent</span>
+        <span className="topnav-badge">RCIC CRM</span>
+      </NavLink>
+
+      <div className="topnav-links">
+        {NAV_ITEMS.map(item => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) => `topnav-link ${isActive ? 'active' : ''}`}
+          >
+            <item.icon size={16} /> {item.label}
+          </NavLink>
+        ))}
+
+        {/* More Dropdown */}
+        <div style={{ position: 'relative' }}>
+          <button
+            className={`topnav-link ${MORE_ITEMS.some(m => location.pathname.startsWith(m.to)) ? 'active' : ''}`}
+            onClick={() => setShowMore(!showMore)}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+          >
+            <Settings size={16} /> More <ChevronDown size={14} />
+          </button>
+          {showMore && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMore(false)} />
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, marginTop: 4,
+                background: '#fff', borderRadius: 12, padding: 6,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid var(--border)',
+                minWidth: 200, zIndex: 50,
+              }}>
+                {MORE_ITEMS.map(item => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) => `topnav-link ${isActive ? 'active' : ''}`}
+                    style={{ color: 'var(--text-secondary)', borderRadius: 8, padding: '10px 14px' }}
+                    onClick={() => setShowMore(false)}
+                  >
+                    <item.icon size={16} /> {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="topnav-right">
+        <div className="topnav-user">
+          <div className="topnav-user-avatar">{initials}</div>
+          <div>
+            <div className="topnav-user-name">{user?.name || 'Demo User'}</div>
+            <div className="topnav-user-email">{user?.email || 'demo@propagent.ca'}</div>
+          </div>
+        </div>
+        <button className="topnav-logout" onClick={onLogout}>
+          <LogOut size={14} />
+        </button>
+      </div>
+    </nav>
+  );
 }
 
-function AdminShell({ children, user }) {
+function AdminShell({ children, user, onLogout }) {
   return (
-    <div className="app-shell">
-      <Sidebar user={user} />
-      <div className="main-area">
-        <header className="topbar">
-          <Breadcrumb />
-          <div className="topbar-search">
-            <Search size={14} style={{ opacity: 0.5 }} />
-            <input type="text" placeholder="Quick search..." />
-            <kbd className="topbar-kbd">⌘K</kbd>
-          </div>
-          <div className="topbar-actions">
-            <button className="topbar-btn">
-              <Bell size={18} />
-              <span className="topbar-btn-dot" />
-            </button>
-            <button className="topbar-btn">
-              <MessageSquare size={18} />
-            </button>
-          </div>
-        </header>
-        <div className="page-content page-enter">
-          {children}
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      <TopNav user={user} onLogout={onLogout} />
+      <div className="page-content page-enter">
+        {children}
       </div>
     </div>
   );
@@ -98,7 +156,7 @@ export default function App() {
         <Route path="/*" element={
           user ? (
             <SessionWrapper user={user} onLogout={handleLogout}>
-              <AdminShell user={user}>
+              <AdminShell user={user} onLogout={handleLogout}>
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/pipeline" element={<Pipeline />} />
