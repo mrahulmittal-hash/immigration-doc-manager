@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 async function request(url, options = {}) {
     const res = await fetch(`${API_BASE}${url}`, {
@@ -62,8 +62,55 @@ export const api = {
     addClientData: (clientId, field_key, field_value) => request(`/clients/${clientId}/data/add`, { method: 'POST', body: JSON.stringify({ field_key, field_value }) }),
     deleteClientData: (id) => request(`/client-data/${id}`, { method: 'DELETE' }),
 
+    // Timeline
+    getTimeline: (clientId) => request(`/clients/${clientId}/timeline`),
+    addTimelineEvent: (clientId, data) => request(`/clients/${clientId}/timeline`, { method: 'POST', body: JSON.stringify(data) }),
+    getRecentTimeline: (limit = 10) => request(`/timeline/recent?limit=${limit}`),
+
+    // Notes
+    getNotes: (clientId) => request(`/clients/${clientId}/notes`),
+    addNote: (clientId, content, author) => request(`/clients/${clientId}/notes`, { method: 'POST', body: JSON.stringify({ content, author }) }),
+    updateNote: (id, data) => request(`/notes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteNote: (id) => request(`/notes/${id}`, { method: 'DELETE' }),
+
+    // Deadlines
+    getDeadlines: (clientId) => request(`/clients/${clientId}/deadlines`),
+    addDeadline: (clientId, data) => request(`/clients/${clientId}/deadlines`, { method: 'POST', body: JSON.stringify(data) }),
+    updateDeadline: (id, data) => request(`/deadlines/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteDeadline: (id) => request(`/deadlines/${id}`, { method: 'DELETE' }),
+    getUpcomingDeadlines: () => request('/deadlines/upcoming'),
+
+    // Checklists
+    getChecklistTemplate: (visaType) => request(`/checklists/${encodeURIComponent(visaType)}`),
+    getClientChecklist: (clientId) => request(`/clients/${clientId}/checklist`),
+    updateChecklistItem: (id, data) => request(`/client-checklist/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    initClientChecklist: (clientId) => request(`/clients/${clientId}/checklist/init`, { method: 'POST' }),
+
+    // Pipeline
+    updateClientStage: (id, stage) => request(`/clients/${id}/stage`, { method: 'PATCH', body: JSON.stringify({ stage }) }),
+
+    // Emails
+    getEmailStatus: () => request('/emails/status'),
+    connectEmail: () => request('/emails/connect'),
+    disconnectEmail: () => request('/emails/disconnect', { method: 'POST' }),
+    syncEmails: () => request('/emails/sync', { method: 'POST' }),
+    syncClientEmails: (clientId) => request(`/clients/${clientId}/emails/sync`, { method: 'POST' }),
+    getClientEmails: (clientId) => request(`/clients/${clientId}/emails`),
+
+    // IRCC Forms (Auto-generation)
+    getIRCCFormTemplates: () => request('/ircc-forms/templates'),
+    getClientIRCCForms: (clientId) => request(`/clients/${clientId}/ircc-forms`),
+    generateIRCCForm: (clientId, formNumber) => request(`/clients/${clientId}/ircc-forms/generate`, { method: 'POST', body: JSON.stringify({ form_number: formNumber }) }),
+    generateAllIRCCForms: (clientId) => request(`/clients/${clientId}/ircc-forms/generate-all`, { method: 'POST' }),
+
+    // IRCC Updates
+    getIRCCUpdates: (category, limit) => request(`/ircc-updates?${category ? `category=${category}&` : ''}limit=${limit || 50}`),
+    triggerIRCCScrape: () => request('/ircc-updates/scrape', { method: 'POST' }),
+
     // PIF
     sendPIFEmail: (clientId) => request(`/clients/${clientId}/send-pif`, { method: 'POST' }),
     getPIFData: (clientId) => request(`/pif/data/${clientId}`),
     verifyPIFData: (clientId) => request(`/pif/data/${clientId}/verify`, { method: 'POST' }),
+    updatePIFData: (clientId, formData) => request(`/pif/data/${clientId}`, { method: 'PUT', body: JSON.stringify({ form_data: formData }) }),
+    getPIFOcrData: (clientId) => request(`/pif/data/${clientId}/ocr`),
 };

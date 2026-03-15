@@ -11,7 +11,7 @@ export default function SessionWrapper({ children, user, onLogout }) {
         if (!user) return;
         
         try {
-            await fetch('http://localhost:5000/api/users/logout', {
+            await fetch('/api/users/logout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.id })

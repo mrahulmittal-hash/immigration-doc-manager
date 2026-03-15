@@ -1,24 +1,24 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { api } from '../api';
+import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2 } from 'lucide-react';
 
-// Same step definitions as PIFForm
 const STEPS = [
-    { id: 'personal', title: 'Personal Information', icon: '👤' },
-    { id: 'canada', title: 'Canada History', icon: '🇨🇦' },
-    { id: 'passport', title: 'Passport Details', icon: '📘' },
-    { id: 'spouse', title: 'Spouse Details', icon: '💍' },
-    { id: 'parents', title: 'Parents Details', icon: '👨‍👩‍👦' },
-    { id: 'education', title: 'Education History', icon: '🎓' },
-    { id: 'work', title: 'Work / Personal History', icon: '💼' },
-    { id: 'children', title: 'Children', icon: '👶' },
-    { id: 'siblings', title: 'Brothers & Sisters', icon: '👫' },
-    { id: 'addresses', title: 'Address History', icon: '🏠' },
-    { id: 'travel', title: 'Travel History', icon: '✈️' },
-    { id: 'relatives', title: 'Relatives in Canada', icon: '🏡' },
-    { id: 'language', title: 'Language Test Scores', icon: '📝' },
-    { id: 'declarations', title: 'Declarations & Consent', icon: '✅' },
+    { id: 'personal', title: 'Personal Information', Icon: User, color: '#4f46e5' },
+    { id: 'canada', title: 'Canada History', Icon: MapPin, color: '#0891b2' },
+    { id: 'passport', title: 'Passport Details', Icon: BookOpen, color: '#7c3aed' },
+    { id: 'spouse', title: 'Spouse Details', Icon: Heart, color: '#e11d48' },
+    { id: 'parents', title: 'Parents Details', Icon: Users, color: '#0d9488' },
+    { id: 'education', title: 'Education History', Icon: GraduationCap, color: '#2563eb' },
+    { id: 'work', title: 'Work / Personal History', Icon: Briefcase, color: '#ca8a04' },
+    { id: 'children', title: 'Children', Icon: Baby, color: '#f97316' },
+    { id: 'siblings', title: 'Brothers & Sisters', Icon: UserPlus, color: '#059669' },
+    { id: 'addresses', title: 'Address History', Icon: Home, color: '#7c3aed' },
+    { id: 'travel', title: 'Travel History', Icon: Plane, color: '#0284c7' },
+    { id: 'relatives', title: 'Relatives in Canada', Icon: UsersRound, color: '#dc2626' },
+    { id: 'language', title: 'Language Test Scores', Icon: Languages, color: '#4f46e5' },
+    { id: 'declarations', title: 'Declarations & Consent', Icon: Scale, color: '#64748b' },
 ];
 
-// All scalar fields for computing fill stats
 const ALL_FIELDS = {
     personal: ['firstName', 'lastName', 'dob', 'placeOfBirth', 'nationality', 'gender', 'eyeColour', 'height'],
     canada: ['appliedBefore', 'appliedBeforeDetails', 'refusedBefore', 'refusedBeforeDetails', 'medicalExamDone', 'medicalExamDetails', 'firstEntryDate', 'placeOfEntry', 'purposeOfVisit', 'lastEntryDate', 'lastEntryPlace', 'biometricsDone'],
@@ -28,8 +28,19 @@ const ALL_FIELDS = {
     language: ['testType', 'ieltsListening', 'ieltsReading', 'ieltsWriting', 'ieltsSpeaking', 'ieltsOverall'],
     declarations: ['criminalHistory', 'criminalDetails', 'healthIssues', 'healthDetails', 'consent'],
 };
-
 const ARRAY_FIELDS = ['education', 'work', 'children', 'siblings', 'addresses', 'travel', 'relatives'];
+
+// OCR field mapping: maps pdfParser extracted_data keys to PIF form fields
+const OCR_TO_PIF_MAP = {
+    first_name: 'firstName', given_names: 'firstName',
+    last_name: 'lastName', surname: 'lastName', family_name: 'lastName',
+    date_of_birth: 'dob', passport_number: 'passportNumber', document_number: 'passportNumber',
+    nationality: 'nationality', citizenship: 'nationality',
+    place_of_birth: 'placeOfBirth', sex: 'gender',
+    date_of_issue: 'passportIssueDate', date_of_expiry: 'passportExpiryDate',
+    marital_status: 'maritalStatus', date_of_marriage: 'spouseMarriageDate',
+    occupation: 'spouseOccupation', email: 'email', phone: 'phone',
+};
 
 function isFilled(val) {
     if (val === null || val === undefined || val === '') return false;
@@ -37,73 +48,78 @@ function isFilled(val) {
     return String(val).trim() !== '';
 }
 
-// Read-only field display
-function FieldValue({ label, value, type, verificationStatus, verificationReason }) {
+/* ── Field Card (View + Edit + OCR comparison) ──────────── */
+function FieldCard({ label, value, fieldKey, type, verificationStatus, verificationReason, editing, onChange, ocrValue, ocrSource, onAcceptOcr }) {
     const filled = isFilled(value);
     const displayVal = filled
-        ? (typeof value === 'boolean' ? (value ? 'Yes ✓' : 'No') : String(value))
+        ? (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value))
         : '—';
-
-    // Verify logic
-    let dotColor = filled ? '#16a34a' : '#d1d5db';
-    let dotShadow = filled ? '0 0 4px rgba(22,163,106,0.4)' : 'none';
-    let bgColor = filled ? '#f0fdf4' : '#fef2f2';
-    let borderColor = filled ? '#bbf7d0' : '#fecaca';
-    let textColor = filled ? '#1e293b' : '#94a3b8';
-
-    if (verificationStatus === 'mismatch') {
-        dotColor = '#dc2626';
-        dotShadow = '0 0 4px rgba(220,38,38,0.4)';
-        bgColor = '#fef2f2';
-        borderColor = '#fca5a5';
-        textColor = '#991b1b';
-    }
+    const isMismatch = verificationStatus === 'mismatch';
+    const hasOcr = ocrValue && ocrValue !== value;
 
     return (
-        <div className="pif-field" style={{ position: 'relative' }}>
-            <label className="pif-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {label}
-                <span style={{
-                    width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
-                    background: dotColor,
-                    boxShadow: dotShadow,
-                    flexShrink: 0
-                }} title={verificationReason || ''} />
-            </label>
-            <div className="pif-input" style={{
-                background: bgColor,
-                border: `1px solid ${borderColor}`,
-                color: textColor,
-                fontStyle: filled ? 'normal' : 'italic',
-                cursor: 'default',
-                minHeight: type === 'textarea' ? 60 : 'auto',
-            }}>
-                {displayVal}
+        <div className={`pv-field-card ${isMismatch ? 'pv-field-mismatch' : filled ? 'pv-field-filled' : 'pv-field-empty'}`}>
+            <div className="pv-field-label">
+                <span>{label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {hasOcr && <span className="pv-field-dot ocr" title="OCR data available" />}
+                    <span className={`pv-field-dot ${isMismatch ? 'mismatch' : filled ? 'filled' : 'empty'}`} />
+                </div>
             </div>
-            {verificationStatus === 'mismatch' && (
-                <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
-                    ⚠️ {verificationReason}
+
+            {editing ? (
+                <input
+                    type={type === 'date' ? 'date' : 'text'}
+                    className="pv-field-input"
+                    value={value || ''}
+                    onChange={e => onChange(fieldKey, e.target.value)}
+                    placeholder={`Enter ${label.toLowerCase()}`}
+                />
+            ) : (
+                <div className={`pv-field-value ${!filled ? 'empty' : ''} ${type === 'textarea' ? 'textarea' : ''}`}>
+                    {displayVal}
+                </div>
+            )}
+
+            {/* OCR comparison row */}
+            {hasOcr && (
+                <div className="pv-ocr-row">
+                    <div className="pv-ocr-badge">
+                        <ScanSearch size={11} /> OCR
+                    </div>
+                    <div className="pv-ocr-value">{ocrValue}</div>
+                    {editing && (
+                        <button className="pv-ocr-accept" onClick={() => onAcceptOcr(fieldKey, ocrValue)} title="Use OCR value">
+                            <Check size={11} /> Use
+                        </button>
+                    )}
+                    {ocrSource && <span className="pv-ocr-source" title={ocrSource}>{ocrSource}</span>}
+                </div>
+            )}
+
+            {isMismatch && !editing && (
+                <div className="pv-field-error">
+                    <AlertTriangle size={11} /> {verificationReason}
                 </div>
             )}
         </div>
     );
 }
 
-function RadioValue({ label, value, options }) {
+function RadioChips({ label, value, options, fieldKey, editing, onChange }) {
+    const filled = isFilled(value);
     return (
-        <div className="pif-field">
-            <label className="pif-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {label}
-                <span style={{
-                    width: 8, height: 8, borderRadius: '50%', display: 'inline-block',
-                    background: isFilled(value) ? '#16a34a' : '#d1d5db',
-                }} />
-            </label>
-            <div className="pif-radio-group">
+        <div className="pv-field-card" style={{ gridColumn: '1 / -1' }}>
+            <div className="pv-field-label">
+                <span>{label}</span>
+                <span className={`pv-field-dot ${filled ? 'filled' : 'empty'}`} />
+            </div>
+            <div className="pv-radio-chips">
                 {options.map(o => (
-                    <span key={o} className={`pif-radio-btn ${value === o ? 'active' : ''}`}
-                        style={{ cursor: 'default', opacity: value === o ? 1 : 0.4 }}>
-                        {o}
+                    <span key={o}
+                        className={`pv-chip ${value === o ? 'active' : ''} ${editing ? 'clickable' : ''}`}
+                        onClick={editing ? () => onChange(fieldKey, o) : undefined}>
+                        {value === o && <Check size={12} />} {o}
                     </span>
                 ))}
             </div>
@@ -111,11 +127,160 @@ function RadioValue({ label, value, options }) {
     );
 }
 
-export default function PIFViewer({ data, verificationResults, clientDocuments }) {
-    const [currentStep, setCurrentStep] = useState(0);
-    const d = data || {};
+function SectionDivider({ title, icon: Icon }) {
+    return (
+        <div className="pv-section-divider">
+            {Icon && <Icon size={15} />}
+            <span>{title}</span>
+        </div>
+    );
+}
 
-    // Compute per-section fill counts
+/* ── Array Section ──────────────────────────────────────── */
+function ArraySection({ sectionKey, rows, fields, label, optional, getVerifyProps, editing, onRowChange }) {
+    const items = rows || [];
+    if (items.length === 0) {
+        return (
+            <div className="pv-empty-section">
+                <div className="pv-empty-icon">📋</div>
+                <div className="pv-empty-text">{optional ? `No ${label.toLowerCase()}s were added by the client.` : `No ${label.toLowerCase()} entries added.`}</div>
+            </div>
+        );
+    }
+    return (
+        <div className="pv-array-list">
+            {items.map((row, i) => {
+                const filledCount = fields.filter(f => isFilled(row[f.key])).length;
+                const pct = Math.round((filledCount / fields.length) * 100);
+                return (
+                    <div key={i} className="pv-array-card">
+                        <div className="pv-array-header">
+                            <div className="pv-array-badge">{label} #{i + 1}</div>
+                            <div className="pv-array-meter">
+                                <div className="pv-array-meter-bar">
+                                    <div className="pv-array-meter-fill" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="pv-array-meter-text">{filledCount}/{fields.length}</span>
+                            </div>
+                        </div>
+                        <div className="pv-grid" style={{ padding: '14px 16px' }}>
+                            {fields.map(f => (
+                                <div key={f.key} className={f.full ? 'pv-span-full' : ''}>
+                                    <FieldCard
+                                        label={f.label} value={row[f.key]} fieldKey={f.key}
+                                        editing={editing}
+                                        onChange={(key, val) => onRowChange(sectionKey, i, key, val)}
+                                        {...(getVerifyProps(sectionKey, f.key, true, i))}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+/* ════════════════════════════════════════════════════════════
+   Main PIFViewer Component
+   ════════════════════════════════════════════════════════════ */
+export default function PIFViewer({ data, verificationResults, clientDocuments, clientId, onDataSaved }) {
+    const [currentStep, setCurrentStep] = useState(0);
+    const [editing, setEditing] = useState(false);
+    const [editData, setEditData] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const [ocrData, setOcrData] = useState(null);
+    const [ocrLoading, setOcrLoading] = useState(false);
+    const [showOcr, setShowOcr] = useState(false);
+    const [viewMode, setViewMode] = useState('form'); // 'form' | 'compare'
+
+    const d = editing ? (editData || data || {}) : (data || {});
+
+    // Start editing
+    const startEdit = () => {
+        setEditData(JSON.parse(JSON.stringify(data || {})));
+        setEditing(true);
+    };
+
+    // Cancel editing
+    const cancelEdit = () => {
+        setEditData(null);
+        setEditing(false);
+    };
+
+    // Save edits
+    const saveEdits = async () => {
+        if (!clientId || !editData) return;
+        setSaving(true);
+        try {
+            await api.updatePIFData(clientId, editData);
+            setEditing(false);
+            setEditData(null);
+            if (onDataSaved) onDataSaved(editData);
+        } catch (e) {
+            console.error('Failed to save PIF edits:', e);
+            alert('Failed to save changes. Please try again.');
+        }
+        setSaving(false);
+    };
+
+    // Update a scalar field
+    const setField = useCallback((key, val) => {
+        setEditData(prev => ({ ...prev, [key]: val }));
+    }, []);
+
+    // Update an array row field
+    const setRowField = useCallback((sectionKey, rowIdx, fieldKey, val) => {
+        setEditData(prev => {
+            const arr = [...(prev[sectionKey] || [])];
+            arr[rowIdx] = { ...arr[rowIdx], [fieldKey]: val };
+            return { ...prev, [sectionKey]: arr };
+        });
+    }, []);
+
+    // Accept OCR value
+    const acceptOcrValue = useCallback((key, val) => {
+        setEditData(prev => ({ ...prev, [key]: val }));
+    }, []);
+
+    // Fetch OCR data
+    const fetchOcr = async () => {
+        if (!clientId) return;
+        setOcrLoading(true);
+        try {
+            const result = await api.getPIFOcrData(clientId);
+            setOcrData(result);
+            setShowOcr(true);
+        } catch (e) {
+            console.error('Failed to fetch OCR data:', e);
+        }
+        setOcrLoading(false);
+    };
+
+    // Get OCR value for a field
+    const getOcrValue = (fieldKey) => {
+        if (!ocrData?.merged_data || !showOcr) return {};
+        // Check direct mapping
+        for (const [ocrKey, pifKey] of Object.entries(OCR_TO_PIF_MAP)) {
+            if (pifKey === fieldKey && ocrData.merged_data[ocrKey]) {
+                return {
+                    ocrValue: ocrData.merged_data[ocrKey].value,
+                    ocrSource: ocrData.merged_data[ocrKey].source_doc,
+                };
+            }
+        }
+        // Check if field key exists directly in merged data
+        if (ocrData.merged_data[fieldKey]) {
+            return {
+                ocrValue: ocrData.merged_data[fieldKey].value,
+                ocrSource: ocrData.merged_data[fieldKey].source_doc,
+            };
+        }
+        return {};
+    };
+
+    // Section stats
     const getSectionStats = (stepId) => {
         if (ALL_FIELDS[stepId]) {
             const fields = ALL_FIELDS[stepId];
@@ -129,214 +294,188 @@ export default function PIFViewer({ data, verificationResults, clientDocuments }
         return { filled: 0, total: 0 };
     };
 
-    // Total stats
-    const totalStats = () => {
+    const { stats, progress } = useMemo(() => {
         let filled = 0, total = 0;
         Object.keys(ALL_FIELDS).forEach(k => {
-            ALL_FIELDS[k].forEach(f => {
-                total++;
-                if (isFilled(d[f])) filled++;
-            });
+            ALL_FIELDS[k].forEach(f => { total++; if (isFilled(d[f])) filled++; });
         });
         ARRAY_FIELDS.forEach(k => {
-            const rows = d[k] || [];
-            rows.forEach(row => {
+            (d[k] || []).forEach(row => {
                 Object.values(row).forEach(v => { total++; if (isFilled(v)) filled++; });
             });
         });
-        return { filled, total };
-    };
-
-    const stats = totalStats();
-    const progress = stats.total > 0 ? Math.round((stats.filled / stats.total) * 100) : 0;
+        return { stats: { filled, total }, progress: total > 0 ? Math.round((filled / total) * 100) : 0 };
+    }, [d]);
 
     const getVerifyProps = (sectionId, fieldKey, isArray = false, arrayIdx = 0) => {
         if (!verificationResults || !verificationResults[sectionId]) return {};
         const vr = verificationResults[sectionId];
         if (vr.status !== 'mismatch') return {};
-
         const searchKey = isArray ? `${fieldKey} (Row ${arrayIdx + 1})` : fieldKey;
         const mismatch = vr.mismatches.find(m => m.field === searchKey);
-        
-        if (mismatch) {
-            return { verificationStatus: 'mismatch', verificationReason: mismatch.reason };
-        }
+        if (mismatch) return { verificationStatus: 'mismatch', verificationReason: mismatch.reason };
         return {};
     };
 
+    const sectionDocs = useMemo(() => {
+        return (clientDocuments || []).filter(doc => doc.category === STEPS[currentStep].id && doc.source === 'pif-upload');
+    }, [clientDocuments, currentStep]);
+
     const renderStep = () => {
         const step = STEPS[currentStep];
+        const fieldProps = (key, opts = {}) => ({
+            label: opts.label || key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()),
+            value: d[key], fieldKey: key,
+            editing, onChange: setField,
+            onAcceptOcr: acceptOcrValue,
+            ...getVerifyProps(step.id, key),
+            ...getOcrValue(key),
+            ...opts,
+        });
+
         switch (step.id) {
             case 'personal': return (
-                <div className="pif-grid">
-                    <FieldValue label="First Name" value={d.firstName} {...getVerifyProps('personal', 'firstName')} />
-                    <FieldValue label="Last Name" value={d.lastName} {...getVerifyProps('personal', 'lastName')} />
-                    <FieldValue label="Date of Birth" value={d.dob} {...getVerifyProps('personal', 'dob')} />
-                    <FieldValue label="Place of Birth" value={d.placeOfBirth} {...getVerifyProps('personal', 'placeOfBirth')} />
-                    <FieldValue label="Nationality" value={d.nationality} {...getVerifyProps('personal', 'nationality')} />
-                    <FieldValue label="Gender" value={d.gender} {...getVerifyProps('personal', 'gender')} />
-                    <FieldValue label="Eye Colour" value={d.eyeColour} {...getVerifyProps('personal', 'eyeColour')} />
-                    <FieldValue label="Height (ft, in)" value={d.height} {...getVerifyProps('personal', 'height')} />
+                <div className="pv-grid">
+                    <FieldCard {...fieldProps('firstName', { label: 'First Name' })} />
+                    <FieldCard {...fieldProps('lastName', { label: 'Last Name' })} />
+                    <FieldCard {...fieldProps('dob', { label: 'Date of Birth', type: 'date' })} />
+                    <FieldCard {...fieldProps('placeOfBirth', { label: 'Place of Birth' })} />
+                    <FieldCard {...fieldProps('nationality', { label: 'Nationality' })} />
+                    <FieldCard {...fieldProps('gender', { label: 'Gender' })} />
+                    <FieldCard {...fieldProps('eyeColour', { label: 'Eye Colour' })} />
+                    <FieldCard {...fieldProps('height', { label: 'Height (ft, in)' })} />
                 </div>
             );
             case 'canada': return (
-                <div className="pif-grid">
-                    <RadioValue label="Have you applied to Canada before?" value={d.appliedBefore} options={['Yes', 'No']} />
-                    {d.appliedBefore === 'Yes' && <FieldValue label="Details of previous application" value={d.appliedBeforeDetails} type="textarea" {...getVerifyProps('canada', 'appliedBeforeDetails')} />}
-                    <RadioValue label="Have you ever been refused a visa/permit?" value={d.refusedBefore} options={['Yes', 'No']} />
-                    {d.refusedBefore === 'Yes' && <FieldValue label="Details of refusal" value={d.refusedBeforeDetails} type="textarea" {...getVerifyProps('canada', 'refusedBeforeDetails')} />}
-                    <RadioValue label="Have you done your medical exam (last 12 months)?" value={d.medicalExamDone} options={['Yes', 'No']} />
-                    {d.medicalExamDone === 'Yes' && <FieldValue label="Medical exam details" value={d.medicalExamDetails} {...getVerifyProps('canada', 'medicalExamDetails')} />}
-                    <FieldValue label="First Entry Date in Canada" value={d.firstEntryDate} {...getVerifyProps('canada', 'firstEntryDate')} />
-                    <FieldValue label="Place of Entry" value={d.placeOfEntry} {...getVerifyProps('canada', 'placeOfEntry')} />
-                    <FieldValue label="Purpose of Visit" value={d.purposeOfVisit} {...getVerifyProps('canada', 'purposeOfVisit')} />
-                    <FieldValue label="Last Entry Date" value={d.lastEntryDate} {...getVerifyProps('canada', 'lastEntryDate')} />
-                    <FieldValue label="Last Entry Place" value={d.lastEntryPlace} {...getVerifyProps('canada', 'lastEntryPlace')} />
-                    <RadioValue label="Have you done your biometrics?" value={d.biometricsDone} options={['Yes', 'No']} />
+                <div className="pv-grid">
+                    <RadioChips label="Have you applied to Canada before?" value={d.appliedBefore} options={['Yes', 'No']} fieldKey="appliedBefore" editing={editing} onChange={setField} />
+                    {d.appliedBefore === 'Yes' && <FieldCard {...fieldProps('appliedBeforeDetails', { label: 'Details of previous application', type: 'textarea' })} />}
+                    <RadioChips label="Have you ever been refused a visa/permit?" value={d.refusedBefore} options={['Yes', 'No']} fieldKey="refusedBefore" editing={editing} onChange={setField} />
+                    {d.refusedBefore === 'Yes' && <FieldCard {...fieldProps('refusedBeforeDetails', { label: 'Details of refusal', type: 'textarea' })} />}
+                    <RadioChips label="Medical exam done (last 12 months)?" value={d.medicalExamDone} options={['Yes', 'No']} fieldKey="medicalExamDone" editing={editing} onChange={setField} />
+                    {d.medicalExamDone === 'Yes' && <FieldCard {...fieldProps('medicalExamDetails', { label: 'Medical exam details' })} />}
+                    <FieldCard {...fieldProps('firstEntryDate', { label: 'First Entry Date in Canada' })} />
+                    <FieldCard {...fieldProps('placeOfEntry', { label: 'Place of Entry' })} />
+                    <FieldCard {...fieldProps('purposeOfVisit', { label: 'Purpose of Visit' })} />
+                    <FieldCard {...fieldProps('lastEntryDate', { label: 'Last Entry Date' })} />
+                    <FieldCard {...fieldProps('lastEntryPlace', { label: 'Last Entry Place' })} />
+                    <RadioChips label="Have you done your biometrics?" value={d.biometricsDone} options={['Yes', 'No']} fieldKey="biometricsDone" editing={editing} onChange={setField} />
                 </div>
             );
             case 'passport': return (
-                <div className="pif-grid">
-                    <FieldValue label="Passport Number" value={d.passportNumber} {...getVerifyProps('passport', 'passportNumber')} />
-                    <FieldValue label="Issue Date" value={d.passportIssueDate} {...getVerifyProps('passport', 'passportIssueDate')} />
-                    <FieldValue label="Expiry Date" value={d.passportExpiryDate} {...getVerifyProps('passport', 'passportExpiryDate')} />
-                    <FieldValue label="Country of Issue" value={d.passportCountry} {...getVerifyProps('passport', 'passportCountry')} />
-                    <FieldValue label="Marital Status" value={d.maritalStatus} {...getVerifyProps('passport', 'maritalStatus')} />
+                <div className="pv-grid">
+                    <FieldCard {...fieldProps('passportNumber', { label: 'Passport Number' })} />
+                    <FieldCard {...fieldProps('passportIssueDate', { label: 'Issue Date' })} />
+                    <FieldCard {...fieldProps('passportExpiryDate', { label: 'Expiry Date' })} />
+                    <FieldCard {...fieldProps('passportCountry', { label: 'Country of Issue' })} />
+                    <FieldCard {...fieldProps('maritalStatus', { label: 'Marital Status' })} />
                 </div>
             );
-            case 'spouse': return (
+            case 'spouse': return d.maritalStatus === 'Single' ? (
+                <div className="pv-empty-section"><div className="pv-empty-icon">💍</div><div className="pv-empty-text">Client selected "Single" — this section was skipped.</div></div>
+            ) : (
                 <div>
-                    {d.maritalStatus === 'Single' ? (
-                        <div className="pif-info-box"><p>Client selected "Single" — this section was skipped.</p></div>
-                    ) : (
-                        <>
-                            <h3 className="pif-subsection">Current Spouse / Partner</h3>
-                            <div className="pif-grid">
-                                <FieldValue label="Date of Marriage" value={d.spouseMarriageDate} {...getVerifyProps('spouse', 'spouseMarriageDate')} />
-                                <FieldValue label="First Name" value={d.spouseFirstName} {...getVerifyProps('spouse', 'spouseFirstName')} />
-                                <FieldValue label="Last Name" value={d.spouseLastName} {...getVerifyProps('spouse', 'spouseLastName')} />
-                                <FieldValue label="Date of Birth" value={d.spouseDob} {...getVerifyProps('spouse', 'spouseDob')} />
-                                <FieldValue label="Place of Birth" value={d.spousePlaceOfBirth} {...getVerifyProps('spouse', 'spousePlaceOfBirth')} />
-                                <FieldValue label="Occupation" value={d.spouseOccupation} {...getVerifyProps('spouse', 'spouseOccupation')} />
-                                <div className="pif-field pif-full">
-                                    <FieldValue label="Spouse Address" value={d.spouseAddress} {...getVerifyProps('spouse', 'spouseAddress')} />
-                                </div>
-                            </div>
-                            <h3 className="pif-subsection" style={{ marginTop: 24 }}>Previous Marriage</h3>
-                            <RadioValue label="Were you previously married?" value={d.previouslyMarried} options={['Yes', 'No']} />
-                            {d.previouslyMarried === 'Yes' && (
-                                <div className="pif-grid" style={{ marginTop: 12 }}>
-                                    <FieldValue label="Date of Marriage" value={d.prevMarriageDate} {...getVerifyProps('spouse', 'prevMarriageDate')} />
-                                    <FieldValue label="End Date" value={d.prevMarriageEndDate} {...getVerifyProps('spouse', 'prevMarriageEndDate')} />
-                                    <FieldValue label="First Name" value={d.prevSpouseFirstName} {...getVerifyProps('spouse', 'prevSpouseFirstName')} />
-                                    <FieldValue label="Last Name" value={d.prevSpouseLastName} {...getVerifyProps('spouse', 'prevSpouseLastName')} />
-                                    <FieldValue label="Date of Birth" value={d.prevSpouseDob} {...getVerifyProps('spouse', 'prevSpouseDob')} />
-                                </div>
-                            )}
-                        </>
+                    <SectionDivider title="Current Spouse / Partner" icon={Heart} />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('spouseMarriageDate', { label: 'Date of Marriage' })} />
+                        <FieldCard {...fieldProps('spouseFirstName', { label: 'First Name' })} />
+                        <FieldCard {...fieldProps('spouseLastName', { label: 'Last Name' })} />
+                        <FieldCard {...fieldProps('spouseDob', { label: 'Date of Birth' })} />
+                        <FieldCard {...fieldProps('spousePlaceOfBirth', { label: 'Place of Birth' })} />
+                        <FieldCard {...fieldProps('spouseOccupation', { label: 'Occupation' })} />
+                        <div className="pv-span-full"><FieldCard {...fieldProps('spouseAddress', { label: 'Spouse Address' })} /></div>
+                    </div>
+                    <SectionDivider title="Previous Marriage" />
+                    <RadioChips label="Were you previously married?" value={d.previouslyMarried} options={['Yes', 'No']} fieldKey="previouslyMarried" editing={editing} onChange={setField} />
+                    {d.previouslyMarried === 'Yes' && (
+                        <div className="pv-grid" style={{ marginTop: 12 }}>
+                            <FieldCard {...fieldProps('prevMarriageDate', { label: 'Date of Marriage' })} />
+                            <FieldCard {...fieldProps('prevMarriageEndDate', { label: 'End Date' })} />
+                            <FieldCard {...fieldProps('prevSpouseFirstName', { label: 'First Name' })} />
+                            <FieldCard {...fieldProps('prevSpouseLastName', { label: 'Last Name' })} />
+                            <FieldCard {...fieldProps('prevSpouseDob', { label: 'Date of Birth' })} />
+                        </div>
                     )}
                 </div>
             );
             case 'parents': return (
                 <div>
-                    <h3 className="pif-subsection">👩 Mother's Details</h3>
-                    <div className="pif-grid">
-                        <FieldValue label="First Name" value={d.motherFirstName} {...getVerifyProps('parents', 'motherFirstName')} />
-                        <FieldValue label="Last Name" value={d.motherLastName} {...getVerifyProps('parents', 'motherLastName')} />
-                        <FieldValue label="Date of Birth" value={d.motherDob} {...getVerifyProps('parents', 'motherDob')} />
-                        <FieldValue label="If deceased, date of death" value={d.motherDeathDate} {...getVerifyProps('parents', 'motherDeathDate')} />
-                        <FieldValue label="Place of Birth" value={d.motherPlaceOfBirth} {...getVerifyProps('parents', 'motherPlaceOfBirth')} />
-                        <FieldValue label="Occupation" value={d.motherOccupation} {...getVerifyProps('parents', 'motherOccupation')} />
-                        <div className="pif-field pif-full">
-                            <FieldValue label="Current Address & Email" value={d.motherAddress} {...getVerifyProps('parents', 'motherAddress')} />
-                        </div>
+                    <SectionDivider title="Mother's Details" icon={Users} />
+                    <div className="pv-grid">
+                        {['motherFirstName', 'motherLastName', 'motherDob', 'motherDeathDate', 'motherPlaceOfBirth', 'motherOccupation'].map(k => (
+                            <FieldCard key={k} {...fieldProps(k, { label: k.replace('mother', '').replace(/([A-Z])/g, ' $1').trim() || k })} />
+                        ))}
+                        <div className="pv-span-full"><FieldCard {...fieldProps('motherAddress', { label: 'Current Address & Email' })} /></div>
                     </div>
-                    <h3 className="pif-subsection" style={{ marginTop: 24 }}>👨 Father's Details</h3>
-                    <div className="pif-grid">
-                        <FieldValue label="First Name" value={d.fatherFirstName} {...getVerifyProps('parents', 'fatherFirstName')} />
-                        <FieldValue label="Last Name" value={d.fatherLastName} {...getVerifyProps('parents', 'fatherLastName')} />
-                        <FieldValue label="Date of Birth" value={d.fatherDob} {...getVerifyProps('parents', 'fatherDob')} />
-                        <FieldValue label="If deceased, date of death" value={d.fatherDeathDate} {...getVerifyProps('parents', 'fatherDeathDate')} />
-                        <FieldValue label="Place of Birth" value={d.fatherPlaceOfBirth} {...getVerifyProps('parents', 'fatherPlaceOfBirth')} />
-                        <FieldValue label="Occupation" value={d.fatherOccupation} {...getVerifyProps('parents', 'fatherOccupation')} />
-                        <div className="pif-field pif-full">
-                            <FieldValue label="Current Address & Email" value={d.fatherAddress} {...getVerifyProps('parents', 'fatherAddress')} />
-                        </div>
+                    <SectionDivider title="Father's Details" icon={Users} />
+                    <div className="pv-grid">
+                        {['fatherFirstName', 'fatherLastName', 'fatherDob', 'fatherDeathDate', 'fatherPlaceOfBirth', 'fatherOccupation'].map(k => (
+                            <FieldCard key={k} {...fieldProps(k, { label: k.replace('father', '').replace(/([A-Z])/g, ' $1').trim() || k })} />
+                        ))}
+                        <div className="pv-span-full"><FieldCard {...fieldProps('fatherAddress', { label: 'Current Address & Email' })} /></div>
                     </div>
                 </div>
             );
-            case 'education': return renderArraySection('education', d.education, [
+            case 'education': return <ArraySection sectionKey="education" rows={d.education} fields={[
                 { key: 'from', label: 'From' }, { key: 'to', label: 'To' },
-                { key: 'institute', label: 'Institute' }, { key: 'city', label: 'City' },
-                { key: 'field', label: 'Field of Study' }
-            ], 'Education');
-            case 'work': return renderArraySection('work', d.work, [
+                { key: 'institute', label: 'Institute' }, { key: 'city', label: 'City' }, { key: 'field', label: 'Field of Study' }
+            ]} label="Education" getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />;
+            case 'work': return <ArraySection sectionKey="work" rows={d.work} fields={[
                 { key: 'from', label: 'From' }, { key: 'to', label: 'To' },
                 { key: 'jobTitle', label: 'Job Title' }, { key: 'city', label: 'City' },
                 { key: 'country', label: 'Country' }, { key: 'companyName', label: 'Company Name' }
-            ], 'Work / Activity');
-            case 'children': return renderArraySection('children', d.children, [
+            ]} label="Work / Activity" getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />;
+            case 'children': return <ArraySection sectionKey="children" rows={d.children} fields={[
                 { key: 'firstName', label: 'First Name' }, { key: 'lastName', label: 'Last Name' },
                 { key: 'relation', label: 'Son / Daughter' }, { key: 'dob', label: 'Date of Birth' },
                 { key: 'placeOfBirth', label: 'Place of Birth' }, { key: 'maritalStatus', label: 'Marital Status' },
                 { key: 'occupation', label: 'Occupation' }, { key: 'eyeColour', label: 'Eye Colour' },
                 { key: 'height', label: 'Height' }, { key: 'currentAddress', label: 'Current Address', full: true }
-            ], 'Child', true);
-            case 'siblings': return renderArraySection('siblings', d.siblings, [
+            ]} label="Child" optional getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />;
+            case 'siblings': return <ArraySection sectionKey="siblings" rows={d.siblings} fields={[
                 { key: 'name', label: 'Full Name' }, { key: 'relation', label: 'Relation' },
                 { key: 'dob', label: 'Date of Birth' }, { key: 'placeOfBirth', label: 'Place of Birth' },
                 { key: 'maritalStatus', label: 'Marital Status' }, { key: 'occupation', label: 'Occupation' },
                 { key: 'addressEmail', label: 'Address & Email', full: true }
-            ], 'Sibling', true);
-            case 'addresses': return renderArraySection('addresses', d.addresses, [
+            ]} label="Sibling" optional getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />;
+            case 'addresses': return <ArraySection sectionKey="addresses" rows={d.addresses} fields={[
                 { key: 'from', label: 'From' }, { key: 'to', label: 'To' },
                 { key: 'address', label: 'Address with Postal Code', full: true },
-                { key: 'cityState', label: 'City / State' }, { key: 'country', label: 'Country' },
-                { key: 'activity', label: 'Activity' }
-            ], 'Address');
-            case 'travel': return renderArraySection('travel', d.travel, [
+                { key: 'cityState', label: 'City / State' }, { key: 'country', label: 'Country' }, { key: 'activity', label: 'Activity' }
+            ]} label="Address" getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />;
+            case 'travel': return <ArraySection sectionKey="travel" rows={d.travel} fields={[
                 { key: 'from', label: 'From' }, { key: 'to', label: 'To' },
                 { key: 'place', label: 'Place (City, Country)' }, { key: 'purpose', label: 'Purpose of Travel' }
-            ], 'Trip', true);
-            case 'relatives': return renderArraySection('relatives', d.relatives, [
+            ]} label="Trip" optional getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />;
+            case 'relatives': return <ArraySection sectionKey="relatives" rows={d.relatives} fields={[
                 { key: 'firstName', label: 'First Name' }, { key: 'lastName', label: 'Last Name' },
                 { key: 'city', label: 'City' }, { key: 'relation', label: 'Relation' },
-                { key: 'phone', label: 'Phone Number' }, { key: 'email', label: 'Email' },
-                { key: 'yearsInCanada', label: 'Years in Canada' }
-            ], 'Relative', true);
+                { key: 'phone', label: 'Phone Number' }, { key: 'email', label: 'Email' }, { key: 'yearsInCanada', label: 'Years in Canada' }
+            ]} label="Relative" optional getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />;
             case 'language': return (
-                <div className="pif-grid">
-                    <FieldValue label="Test Type" value={d.testType} />
-                    <FieldValue label="Listening" value={d.ieltsListening} {...getVerifyProps('language', 'ieltsListening')} />
-                    <FieldValue label="Reading" value={d.ieltsReading} {...getVerifyProps('language', 'ieltsReading')} />
-                    <FieldValue label="Writing" value={d.ieltsWriting} {...getVerifyProps('language', 'ieltsWriting')} />
-                    <FieldValue label="Speaking" value={d.ieltsSpeaking} {...getVerifyProps('language', 'ieltsSpeaking')} />
-                    <FieldValue label="Overall" value={d.ieltsOverall} {...getVerifyProps('language', 'ieltsOverall')} />
+                <div className="pv-grid">
+                    <FieldCard {...fieldProps('testType', { label: 'Test Type' })} />
+                    <FieldCard {...fieldProps('ieltsListening', { label: 'Listening' })} />
+                    <FieldCard {...fieldProps('ieltsReading', { label: 'Reading' })} />
+                    <FieldCard {...fieldProps('ieltsWriting', { label: 'Writing' })} />
+                    <FieldCard {...fieldProps('ieltsSpeaking', { label: 'Speaking' })} />
+                    <FieldCard {...fieldProps('ieltsOverall', { label: 'Overall' })} />
                 </div>
             );
             case 'declarations': return (
                 <div>
-                    <div className="pif-declaration-box">
-                        <h3 className="pif-subsection">⚖️ Declarations</h3>
-                        <RadioValue label="a) Criminal history / charges?" value={d.criminalHistory} options={['Yes', 'No']} />
-                        {d.criminalHistory === 'Yes' && <FieldValue label="Details" value={d.criminalDetails} type="textarea" />}
-                        <div style={{ marginTop: 16 }} />
-                        <RadioValue label="b) Disease or physical/mental disorder?" value={d.healthIssues} options={['Yes', 'No']} />
-                        {d.healthIssues === 'Yes' && <FieldValue label="Details" value={d.healthDetails} type="textarea" />}
+                    <div className="pv-declarations-box">
+                        <RadioChips label="a) Criminal history / charges?" value={d.criminalHistory} options={['Yes', 'No']} fieldKey="criminalHistory" editing={editing} onChange={setField} />
+                        {d.criminalHistory === 'Yes' && <FieldCard {...fieldProps('criminalDetails', { label: 'Details', type: 'textarea' })} />}
+                        <div style={{ marginTop: 12 }} />
+                        <RadioChips label="b) Disease or physical/mental disorder?" value={d.healthIssues} options={['Yes', 'No']} fieldKey="healthIssues" editing={editing} onChange={setField} />
+                        {d.healthIssues === 'Yes' && <FieldCard {...fieldProps('healthDetails', { label: 'Details', type: 'textarea' })} />}
                     </div>
-                    <div className="pif-consent-box">
-                        <div style={{
-                            padding: 14, borderRadius: 10,
-                            background: d.consent ? '#f0fdf4' : '#fef2f2',
-                            border: `1px solid ${d.consent ? '#bbf7d0' : '#fecaca'}`,
-                            display: 'flex', alignItems: 'center', gap: 10, fontSize: 14
-                        }}>
-                            <span style={{ fontSize: 20 }}>{d.consent ? '✅' : '⬜'}</span>
-                            <span style={{ color: d.consent ? '#166534' : '#991b1b' }}>
-                                {d.consent
-                                    ? 'Client has agreed to the declaration and consented to information sharing.'
-                                    : 'Client has NOT provided consent yet.'}
-                            </span>
+                    <div className={`pv-consent-card ${d.consent ? 'agreed' : 'pending'}`}>
+                        <span className="pv-consent-icon">{d.consent ? <CheckCircle size={22} /> : <Square size={22} />}</span>
+                        <div>
+                            <div className="pv-consent-title">{d.consent ? 'Consent Provided' : 'Consent Pending'}</div>
+                            <div className="pv-consent-desc">{d.consent ? 'Client has agreed to the declaration and consented to information sharing.' : 'Client has NOT provided consent yet.'}</div>
                         </div>
                     </div>
                 </div>
@@ -345,144 +484,137 @@ export default function PIFViewer({ data, verificationResults, clientDocuments }
         }
     };
 
-    const renderArraySection = (key, rows, fields, label, optional = false) => {
-        const items = rows || [];
-        if (items.length === 0) {
-            return (
-                <div className="pif-info-box">
-                    <p>{optional ? `No ${label.toLowerCase()}s were added by the client.` : `No ${label.toLowerCase()} entries added.`}</p>
-                </div>
-            );
-        }
-        return (
-            <div>
-                {items.map((row, i) => (
-                    <div key={i} className="pif-dynamic-row">
-                        <div className="pif-dynamic-row-header">
-                            <span className="pif-row-num">{label} #{i + 1}</span>
-                            <span style={{ fontSize: 11, color: '#64748b' }}>
-                                {fields.filter(f => isFilled(row[f.key])).length}/{fields.length} filled
-                            </span>
-                        </div>
-                        <div className="pif-grid">
-                            {fields.map(f => (
-                                <div key={f.key} className={f.full ? 'pif-field pif-full' : 'pif-field'}>
-                                    <FieldValue label={f.label} value={row[f.key]} {...getVerifyProps(key, f.key, true, i)} />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        );
-    };
+    const step = STEPS[currentStep];
+    const sStats = getSectionStats(step.id);
+    const sectionPct = sStats.total > 0 ? Math.round((sStats.filled / sStats.total) * 100) : 0;
+    const verifyStatus = verificationResults?.[step.id]?.status;
 
     return (
-        <div className="pif-shell" style={{ margin:0, borderRadius: 16, overflow:'hidden', border:'1px solid var(--border-color)', height: 600 }}>
-            {/* Left Nav Panel */}
-            <div className="pif-left" style={{ width: 280, padding: 20 }}>
-                <div style={{ marginBottom: 20 }}>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6, fontWeight:600 }}>Completion</div>
-                    <div style={{ height: 6, background: 'rgba(255,255,255,.06)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{
-                            height: '100%', borderRadius: 3, transition: 'width 0.4s ease',
-                            width: `${progress}%`,
-                            background: progress === 100 ? '#10b981' : '#3b82f6'
-                        }} />
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8, fontWeight:500 }}>
-                        {stats.filled} / {stats.total} fields filled ({progress}%)
+        <div className="pv-shell">
+            {/* ── Left Sidebar ─────────────────────────────── */}
+            <div className="pv-sidebar">
+                <div className="pv-progress-block">
+                    <div className="pv-progress-header"><BarChart3 size={14} /><span>Overall Completion</span></div>
+                    <div className="pv-progress-ring-row">
+                        <div className="pv-progress-circle">
+                            <svg viewBox="0 0 36 36" className="pv-circular-chart">
+                                <path className="pv-circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <path className="pv-circle-fill" strokeDasharray={`${progress}, 100`} d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" style={{ stroke: progress === 100 ? '#10b981' : '#4f46e5' }} />
+                            </svg>
+                            <span className="pv-progress-pct">{progress}%</span>
+                        </div>
+                        <div className="pv-progress-detail"><span className="pv-progress-num">{stats.filled}</span> / {stats.total} fields</div>
                     </div>
                 </div>
-
-                <div className="pif-step-list">
+                <div className="pv-step-nav">
                     {STEPS.map((s, i) => {
-                        const sStats = getSectionStats(s.id);
-                        const isDone = sStats.total > 0 && sStats.filled === sStats.total;
+                        const st = getSectionStats(s.id);
+                        const isDone = st.total > 0 && st.filled === st.total;
+                        const isActive = i === currentStep;
+                        const hasVIssue = verificationResults?.[s.id]?.status === 'mismatch';
                         return (
-                            <button key={s.id}
-                                className={`pif-step-row ${i === currentStep ? 'active' : ''} ${isDone ? 'done' : ''}`}
-                                onClick={() => setCurrentStep(i)}>
-                                <div className="pif-step-dot">{isDone ? '✓' : (i + 1)}</div>
-                                <div className="pif-step-text">
-                                    <div className="pif-step-name">{s.title}</div>
+                            <button key={s.id} className={`pv-step-btn ${isActive ? 'active' : ''} ${isDone ? 'done' : ''} ${hasVIssue ? 'has-issue' : ''}`} onClick={() => setCurrentStep(i)}>
+                                <div className={`pv-step-num ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`} style={isActive ? { background: s.color, borderColor: s.color } : {}}>
+                                    {isDone ? <Check size={12} /> : hasVIssue ? <AlertTriangle size={11} /> : (i + 1)}
                                 </div>
+                                <div className="pv-step-info">
+                                    <div className="pv-step-title">{s.title}</div>
+                                    {st.total > 0 && <div className="pv-step-sub">{st.filled}/{st.total} {st.isArray ? 'entries' : 'fields'}</div>}
+                                </div>
+                                {isDone && <CheckCircle size={14} className="pv-step-check" />}
                             </button>
                         );
                     })}
                 </div>
             </div>
 
-            {/* Right Content Panel */}
-            <div className="pif-right">
-                <div className="pif-right-body" style={{ padding: '30px 40px' }}>
-                    <div className="pif-step-header" style={{ marginBottom: 30 }}>
-                        <h2 className="pif-step-heading" style={{ fontSize:22, display:'flex', alignItems:'center', gap:10 }}>
-                            <span>{STEPS[currentStep].icon}</span>
-                            {STEPS[currentStep].title}
-                        </h2>
+            {/* ── Main Content ──────────────────────────────── */}
+            <div className="pv-main">
+                <div className="pv-main-header">
+                    <div className="pv-main-header-left">
+                        <div className="pv-step-icon-badge" style={{ background: `${step.color}12`, color: step.color, border: `1px solid ${step.color}30` }}>
+                            <step.Icon size={20} />
+                        </div>
+                        <div>
+                            <div className="pv-main-title">{step.title}</div>
+                            <div className="pv-main-subtitle">Step {currentStep + 1} of {STEPS.length}{sStats.total > 0 && <> · <strong>{sectionPct}%</strong> complete</>}</div>
+                        </div>
                     </div>
-                    
-                    <div className="pif-step-content">
-                        {(() => {
-                            const stepId = STEPS[currentStep].id;
-                            const vr = verificationResults ? verificationResults[stepId] : null;
-                            let hasIssues = vr && vr.status === 'mismatch';
-                            const sectionDocs = (clientDocuments || []).filter(doc => doc.category === stepId && doc.source === 'pif-upload');
-
-                            return (
-                                <>
-                                    {sectionDocs.length > 0 && (
-                                        <div style={{
-                                            marginBottom: 20, padding: 12, borderRadius: 8,
-                                            background: 'rgba(59,130,246,.08)', border: '1px solid rgba(59,130,246,.2)',
-                                            display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap'
-                                        }}>
-                                            <div style={{ fontSize: 13, fontWeight: 600, color: '#60a5fa' }}>📎 Uploaded Docs:</div>
-                                            {sectionDocs.map(doc => (
-                                                <a key={doc.id} href={`http://localhost:5000/api/documents/${doc.id}/download`} 
-                                                   target="_blank" rel="noreferrer"
-                                                   style={{
-                                                       fontSize: 12, padding: '4px 10px', background: 'rgba(255,255,255,.05)', 
-                                                       border: '1px solid rgba(255,255,255,.1)', borderRadius: 20, 
-                                                       color: '#fff', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4
-                                                   }}>
-                                                    📄 {doc.original_name}
-                                                </a>
-                                            ))}
-                                        </div>
-                                    )}
-                                    
-                                    {hasIssues && (
-                                        <div style={{
-                                            marginBottom: 20, padding: '12px 16px', borderRadius: 8,
-                                            background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#fca5a5',
-                                            fontSize: 13, display: 'flex', alignItems: 'flex-start', gap: 8
-                                        }}>
-                                            <span style={{ fontSize: 16 }}>⚠️</span>
-                                            <div>
-                                                <strong style={{ display: 'block', marginBottom: 4, color:'#f87171' }}>Verification Check Failed</strong>
-                                                Some fields could not be found in the uploaded documents.
-                                            </div>
-                                        </div>
-                                    )}
-                                    
-                                    {renderStep()}
-                                </>
-                            );
-                        })()}
+                    <div className="pv-main-header-right">
+                        {/* OCR Button */}
+                        <button className={`pv-toolbar-btn ${showOcr ? 'active' : ''}`} onClick={showOcr ? () => setShowOcr(false) : fetchOcr} disabled={ocrLoading} title="Show OCR extracted data">
+                            {ocrLoading ? <Loader2 size={14} className="spin" /> : <ScanSearch size={14} />}
+                            {showOcr ? 'Hide OCR' : 'OCR Data'}
+                        </button>
+                        {/* Edit / Save / Cancel */}
+                        {editing ? (
+                            <>
+                                <button className="pv-toolbar-btn cancel" onClick={cancelEdit}><X size={14} /> Cancel</button>
+                                <button className="pv-toolbar-btn save" onClick={saveEdits} disabled={saving}>
+                                    {saving ? <Loader2 size={14} className="spin" /> : <Save size={14} />} Save
+                                </button>
+                            </>
+                        ) : (
+                            <button className="pv-toolbar-btn edit" onClick={startEdit}><Pencil size={14} /> Edit</button>
+                        )}
+                        {verifyStatus === 'mismatch' && <div className="pv-verify-badge warn"><ShieldAlert size={14} /> Issues</div>}
+                        {verifyStatus === 'verified' && <div className="pv-verify-badge ok"><ShieldCheck size={14} /> Verified</div>}
                     </div>
                 </div>
 
-                <div className="pif-right-footer" style={{ padding: '16px 40px' }}>
-                    <button className="pif-nav-btn pif-nav-prev" disabled={currentStep === 0}
-                        onClick={() => setCurrentStep(prev => prev - 1)}>
-                        ← Back
-                    </button>
-                    <button className="pif-nav-btn pif-nav-next" disabled={currentStep === STEPS.length - 1}
-                        onClick={() => setCurrentStep(prev => prev + 1)}>
-                        Next →
-                    </button>
+                <div className="pv-main-body">
+                    {/* Editing banner */}
+                    {editing && (
+                        <div className="pv-alert-banner edit">
+                            <Pencil size={14} />
+                            <div><strong>Edit Mode</strong><span>You are editing the client's PIF data. Click Save when done.</span></div>
+                        </div>
+                    )}
+
+                    {/* OCR Summary Banner */}
+                    {showOcr && ocrData && (
+                        <div className="pv-alert-banner ocr">
+                            <ScanSearch size={14} />
+                            <div>
+                                <strong>OCR Data Available</strong>
+                                <span>{ocrData.total_docs} document(s) scanned · {Object.keys(ocrData.merged_data || {}).length} fields extracted. Fields with OCR data show a blue dot and comparison row.</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Docs banner */}
+                    {sectionDocs.length > 0 && (
+                        <div className="pv-docs-banner">
+                            <Paperclip size={14} />
+                            <span className="pv-docs-label">Uploaded Documents:</span>
+                            <div className="pv-docs-list">
+                                {sectionDocs.map(doc => (
+                                    <a key={doc.id} href={`/api/documents/${doc.id}/download`} target="_blank" rel="noreferrer" className="pv-doc-chip">
+                                        <FileText size={12} /> {doc.original_name}
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {verifyStatus === 'mismatch' && !editing && (
+                        <div className="pv-alert-banner warn">
+                            <AlertTriangle size={15} />
+                            <div><strong>Verification Issues</strong><span>Some fields could not be verified against the uploaded documents.</span></div>
+                        </div>
+                    )}
+
+                    <div className="pv-step-content">{renderStep()}</div>
+                </div>
+
+                <div className="pv-main-footer">
+                    <button className="pv-nav-btn prev" disabled={currentStep === 0} onClick={() => setCurrentStep(prev => prev - 1)}><ChevronLeft size={16} /> Previous</button>
+                    <div className="pv-step-dots">
+                        {STEPS.map((_, i) => (
+                            <button key={i} className={`pv-dot ${i === currentStep ? 'active' : ''} ${getSectionStats(STEPS[i].id).total > 0 && getSectionStats(STEPS[i].id).filled === getSectionStats(STEPS[i].id).total ? 'done' : ''}`} onClick={() => setCurrentStep(i)} title={STEPS[i].title} />
+                        ))}
+                    </div>
+                    <button className="pv-nav-btn next" disabled={currentStep === STEPS.length - 1} onClick={() => setCurrentStep(prev => prev + 1)}>Next <ChevronRight size={16} /></button>
                 </div>
             </div>
         </div>

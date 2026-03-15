@@ -124,6 +124,117 @@ async function initDatabase() {
       )
     `);
 
+    // Client Timeline
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_timeline (
+        id          SERIAL PRIMARY KEY,
+        client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        event_type  TEXT NOT NULL,
+        title       TEXT NOT NULL,
+        description TEXT,
+        metadata    JSONB,
+        created_by  TEXT,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Client Notes
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_notes (
+        id         SERIAL PRIMARY KEY,
+        client_id  INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        content    TEXT NOT NULL,
+        author     TEXT DEFAULT 'Admin',
+        is_pinned  BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // IRCC Updates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ircc_updates (
+        id              SERIAL PRIMARY KEY,
+        title           TEXT NOT NULL,
+        url             TEXT UNIQUE,
+        summary         TEXT,
+        category        TEXT,
+        published_date  TEXT,
+        scraped_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Client Deadlines
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_deadlines (
+        id             SERIAL PRIMARY KEY,
+        client_id      INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        title          TEXT NOT NULL,
+        deadline_date  DATE NOT NULL,
+        category       TEXT DEFAULT 'general',
+        status         TEXT DEFAULT 'pending',
+        reminder_days  INTEGER DEFAULT 7,
+        notes          TEXT,
+        created_at     TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Document Checklists
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS document_checklists (
+        id             SERIAL PRIMARY KEY,
+        visa_type      TEXT NOT NULL,
+        document_name  TEXT NOT NULL,
+        is_required    BOOLEAN DEFAULT TRUE,
+        description    TEXT,
+        category       TEXT DEFAULT 'general'
+      )
+    `);
+
+    // Client Checklist Status
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_checklist_status (
+        id             SERIAL PRIMARY KEY,
+        client_id      INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        checklist_id   INTEGER NOT NULL REFERENCES document_checklists(id) ON DELETE CASCADE,
+        status         TEXT DEFAULT 'missing',
+        document_id    INTEGER REFERENCES documents(id) ON DELETE SET NULL,
+        notes          TEXT
+      )
+    `);
+
+    // Add pipeline_stage column to clients
+    await client.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS pipeline_stage TEXT DEFAULT 'lead'`);
+
+    // Email Integration
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_settings (
+        id              SERIAL PRIMARY KEY,
+        user_id         INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        access_token    TEXT,
+        refresh_token   TEXT,
+        token_expires_at TIMESTAMPTZ,
+        email_address   TEXT,
+        is_connected    BOOLEAN DEFAULT FALSE,
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_emails (
+        id              SERIAL PRIMARY KEY,
+        client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        message_id      TEXT UNIQUE,
+        from_email      TEXT,
+        from_name       TEXT,
+        subject         TEXT,
+        body_preview    TEXT,
+        received_at     TIMESTAMPTZ,
+        has_attachments BOOLEAN DEFAULT FALSE,
+        folder          TEXT DEFAULT 'inbox'
+      )
+    `);
+
     // Seed default admin if none exists
     const adminExists = await client.query("SELECT id FROM users WHERE email = 'rajinder@propagent.ca'");
     if (adminExists.rowCount === 0) {
@@ -143,6 +254,94 @@ async function initDatabase() {
         ('Priya Patel', 'priya@propagent.ca', 'Case Manager', 'active'),
         ('David Chen', 'david@propagent.ca', 'Viewer', 'inactive')
       `);
+    }
+
+    // Seed sample clients for demo purposes
+    const clientsExist = await client.query("SELECT COUNT(*) as cnt FROM clients");
+    if (parseInt(clientsExist.rows[0].cnt) === 0) {
+      await client.query(`
+        INSERT INTO clients (first_name, last_name, email, phone, nationality, date_of_birth, passport_number, visa_type, status, pif_status, form_token, notes, created_at)
+        VALUES
+        ('Anish', 'Sharma', 'anish.sharma@gmail.com', '+1 (604) 555-0112', 'Indian', '1992-06-15', 'K8234567', 'Express Entry', 'active', 'completed', 'tok_anish01', 'CRS score 478. IELTS 7.5 overall. 3 years Canadian work experience as Software Engineer.', NOW() - INTERVAL '45 days'),
+        ('Wei', 'Chen', 'wei.chen@outlook.com', '+1 (416) 555-0198', 'Chinese', '1998-11-03', 'E12345678', 'Study Permit', 'active', 'sent', 'tok_wei02', 'Accepted to UBC Computer Science. GIC completed. Tuition paid for first year.', NOW() - INTERVAL '30 days'),
+        ('Phuong', 'Nguyen', 'phuong.n@yahoo.com', '+1 (587) 555-0234', 'Vietnamese', '1988-03-22', 'B7654321', 'Spousal Sponsorship', 'active', 'pending', 'tok_phuong03', 'Spouse is Canadian citizen. Married 2 years. Joint bank accounts and lease provided.', NOW() - INTERVAL '20 days'),
+        ('Raj', 'Patel', 'raj.patel@hotmail.com', '+1 (403) 555-0167', 'Indian', '1995-09-10', 'M4567890', 'Work Permit (PGWP)', 'active', 'completed', 'tok_raj04', 'Graduated from Conestoga College. Diploma in Business Management. Applied within 180 days.', NOW() - INTERVAL '60 days'),
+        ('Maria', 'Garcia', 'maria.garcia@gmail.com', '+1 (778) 555-0145', 'Mexican', '1990-12-01', 'G9876543', 'PR Application', 'active', 'sent', 'tok_maria05', 'Provincial Nominee Program — BC PNP Tech. Currently on work permit expiring Dec 2026.', NOW() - INTERVAL '15 days'),
+        ('Oleksandr', 'Kovalenko', 'oleks.koval@gmail.com', '+1 (647) 555-0289', 'Ukrainian', '1985-07-18', 'FA234567', 'Express Entry', 'active', 'completed', 'tok_oleks06', 'CUAET pathway. Currently working as Electrician. NOC 72200. CLB 8.', NOW() - INTERVAL '90 days'),
+        ('Fatima', 'Al-Hassan', 'fatima.alh@outlook.com', '+1 (905) 555-0321', 'Syrian', '1993-04-25', 'N1122334', 'Refugee Claim', 'active', 'pending', 'tok_fatima07', 'Referred by UNHCR. Family of 4. Awaiting hearing date from IRB.', NOW() - INTERVAL '10 days'),
+        ('James', 'O''Brien', 'james.obrien@icloud.com', '+1 (236) 555-0456', 'Irish', '1991-01-30', 'PA5566778', 'Work Permit (LMIA)', 'inactive', 'completed', 'tok_james08', 'LMIA approved for Restaurant Manager position. Employer: West Coast Dining Inc. Case closed — permit issued.', NOW() - INTERVAL '120 days')
+      `);
+
+      // Add some client_data entries for clients with completed PIFs
+      const anishId = (await client.query("SELECT id FROM clients WHERE email = 'anish.sharma@gmail.com'")).rows[0]?.id;
+      const rajId = (await client.query("SELECT id FROM clients WHERE email = 'raj.patel@hotmail.com'")).rows[0]?.id;
+      const oleksId = (await client.query("SELECT id FROM clients WHERE email = 'oleks.koval@gmail.com'")).rows[0]?.id;
+
+      if (anishId) {
+        await client.query(`
+          INSERT INTO client_data (client_id, field_key, field_value) VALUES
+          ($1, 'CRS Score', '478'),
+          ($1, 'IELTS Overall', '7.5'),
+          ($1, 'Work Experience (Years)', '3'),
+          ($1, 'Employer', 'TechNova Solutions Inc.'),
+          ($1, 'NOC Code', '21232')
+        `, [anishId]);
+      }
+      if (rajId) {
+        await client.query(`
+          INSERT INTO client_data (client_id, field_key, field_value) VALUES
+          ($1, 'Institution', 'Conestoga College'),
+          ($1, 'Program', 'Business Management'),
+          ($1, 'Graduation Date', '2025-12-15'),
+          ($1, 'Student Permit Expiry', '2026-06-15')
+        `, [rajId]);
+      }
+      if (oleksId) {
+        await client.query(`
+          INSERT INTO client_data (client_id, field_key, field_value) VALUES
+          ($1, 'CRS Score', '462'),
+          ($1, 'CLB Level', '8'),
+          ($1, 'Trade Certification', 'Red Seal Electrician'),
+          ($1, 'CUAET Status', 'Approved')
+        `, [oleksId]);
+      }
+
+      console.log('✅ Seeded 8 sample clients with data');
+    }
+
+    const checklistExists = await client.query("SELECT COUNT(*) as cnt FROM document_checklists");
+    if (parseInt(checklistExists.rows[0].cnt) === 0) {
+      await client.query(`
+        INSERT INTO document_checklists (visa_type, document_name, is_required, description, category) VALUES
+        ('Express Entry', 'Valid Passport', true, 'Current passport with at least 6 months validity', 'identity'),
+        ('Express Entry', 'Language Test Results (IELTS/CELPIP)', true, 'Must be less than 2 years old', 'language'),
+        ('Express Entry', 'Education Credential Assessment (ECA)', true, 'WES or equivalent assessment', 'education'),
+        ('Express Entry', 'Work Experience Letters', true, 'Reference letters from employers detailing duties', 'employment'),
+        ('Express Entry', 'Police Clearance Certificate', true, 'From each country lived in 6+ months', 'background'),
+        ('Express Entry', 'Medical Exam Results', true, 'From IRCC panel physician', 'medical'),
+        ('Express Entry', 'Proof of Funds', true, 'Bank statements showing settlement funds', 'financial'),
+        ('Express Entry', 'Digital Photo', true, 'IRCC specification photo', 'identity'),
+        ('Express Entry', 'Provincial Nomination (if applicable)', false, 'PNP certificate if applicable', 'other'),
+        ('Study Permit', 'Valid Passport', true, 'Current passport', 'identity'),
+        ('Study Permit', 'Letter of Acceptance', true, 'From designated learning institution (DLI)', 'education'),
+        ('Study Permit', 'Proof of Financial Support', true, 'Tuition + living expenses evidence', 'financial'),
+        ('Study Permit', 'GIC Certificate', false, 'Guaranteed Investment Certificate', 'financial'),
+        ('Study Permit', 'Language Test Results', true, 'IELTS or equivalent', 'language'),
+        ('Study Permit', 'Statement of Purpose', true, 'Letter explaining study plans', 'other'),
+        ('Work Permit (PGWP)', 'Valid Passport', true, 'Current passport', 'identity'),
+        ('Work Permit (PGWP)', 'Official Transcript', true, 'From Canadian institution', 'education'),
+        ('Work Permit (PGWP)', 'Completion Letter', true, 'Letter confirming program completion', 'education'),
+        ('Work Permit (PGWP)', 'Valid Study Permit', true, 'Current or expired study permit', 'identity'),
+        ('Work Permit (PGWP)', 'Digital Photo', true, 'IRCC specification photo', 'identity'),
+        ('Spousal Sponsorship', 'Valid Passport', true, 'Current passport for both parties', 'identity'),
+        ('Spousal Sponsorship', 'Marriage Certificate', true, 'Official marriage certificate', 'identity'),
+        ('Spousal Sponsorship', 'Proof of Relationship', true, 'Photos, communication records, joint accounts', 'relationship'),
+        ('Spousal Sponsorship', 'Sponsor Income Documents', true, 'T4, NOA, employment letter', 'financial'),
+        ('Spousal Sponsorship', 'Police Clearance Certificate', true, 'From each country lived 6+ months', 'background'),
+        ('Spousal Sponsorship', 'Medical Exam Results', true, 'From IRCC panel physician', 'medical'),
+        ('Spousal Sponsorship', 'IMM 1344 Sponsorship Agreement', true, 'Signed undertaking form', 'forms')
+      `);
+      console.log('✅ Seeded document checklists');
     }
 
     console.log('✅ PostgreSQL database initialized successfully');

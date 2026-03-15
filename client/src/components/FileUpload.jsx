@@ -1,4 +1,5 @@
 import { useCallback, useState, useRef } from 'react';
+import { FolderOpen, FileText, Image, X } from 'lucide-react';
 
 export default function FileUpload({ onFiles, accept = '.pdf,.png,.jpg,.jpeg,.gif,.doc,.docx', multiple = true, label = 'Drop files here or click to browse' }) {
     const [dragging, setDragging] = useState(false);
@@ -61,7 +62,7 @@ export default function FileUpload({ onFiles, accept = '.pdf,.png,.jpg,.jpeg,.gi
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
             >
-                <div className="file-upload-icon">📁</div>
+                <div className="file-upload-icon"><FolderOpen size={28} /></div>
                 <div className="file-upload-text">{label}</div>
                 <div className="file-upload-hint">Supports: PDF, Images, Word Documents (max 50MB each)</div>
                 <input
@@ -80,7 +81,7 @@ export default function FileUpload({ onFiles, accept = '.pdf,.png,.jpg,.jpeg,.gi
                         <div key={i} className="file-item">
                             <div className="file-item-info">
                                 <span className="file-item-icon">
-                                    {file.name.endsWith('.pdf') ? '📄' : '🖼️'}
+                                    {file.name.endsWith('.pdf') ? <FileText size={18} /> : <Image size={18} />}
                                 </span>
                                 <div>
                                     <div className="file-item-name">{file.name}</div>
@@ -88,7 +89,7 @@ export default function FileUpload({ onFiles, accept = '.pdf,.png,.jpg,.jpeg,.gi
                                 </div>
                             </div>
                             <button className="btn btn-icon btn-danger" onClick={(e) => { e.stopPropagation(); removeFile(i); }}>
-                                ✕
+                                <X size={14} />
                             </button>
                         </div>
                     ))}

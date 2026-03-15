@@ -1,0 +1,385 @@
+const express = require('express');
+const router = express.Router();
+const fs = require('fs');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+const { prepareAll, prepareGet, prepareRun } = require('../database');
+const { getFormsForVisaType, getSupportedVisaTypes, buildFormDataMap } = require('../services/irccFormTemplates');
+const { fillPDFForm, analyzeFormFields } = require('../services/pdfFiller');
+
+/**
+ * Build comprehensive client data map from all sources
+ */
+async function buildFullClientDataMap(clientId) {
+  const client = await prepareGet('SELECT * FROM clients WHERE id = ?', clientId);
+  if (!client) throw new Error('Client not found');
+
+  const dataMap = {};
+
+  // Core client fields
+  if (client.first_name) dataMap['first_name'] = client.first_name;
+  if (client.last_name) dataMap['last_name'] = client.last_name;
+  dataMap['full_name'] = `${client.first_name || ''} ${client.last_name || ''}`.trim();
+  if (client.email) dataMap['email'] = client.email;
+  if (client.phone) dataMap['phone'] = client.phone;
+  if (client.nationality) dataMap['nationality'] = client.nationality;
+  if (client.date_of_birth) dataMap['date_of_birth'] = client.date_of_birth;
+  if (client.passport_number) dataMap['passport_number'] = client.passport_number;
+  if (client.visa_type) dataMap['visa_type'] = client.visa_type;
+
+  // PIF data
+  const pifSubmission = await prepareGet('SELECT form_data FROM pif_submissions WHERE client_id = ?', clientId);
+  if (pifSubmission?.form_data) {
+    try {
+      const pifData = JSON.parse(pifSubmission.form_data);
+      // Flatten PIF sections into data map
+      for (const [section, fields] of Object.entries(pifData)) {
+        if (typeof fields === 'object' && fields !== null) {
+          for (const [key, value] of Object.entries(fields)) {
+            if (value && typeof value === 'string' && value.trim()) {
+              dataMap[key] = value.trim();
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // Client data (extracted from documents + manually added)
+  const clientData = await prepareAll('SELECT field_key, field_value FROM client_data WHERE client_id = ?', clientId);
+  for (const item of clientData) {
+    if (item.field_value && item.field_value.trim()) {
+      dataMap[item.field_key] = item.field_value;
+    }
+  }
+
+  return { client, dataMap };
+}
+
+// GET /ircc-forms/templates — list all supported visa types and their forms
+router.get('/ircc-forms/templates', (req, res) => {
+  const visaTypes = getSupportedVisaTypes();
+  const templates = {};
+  for (const vt of visaTypes) {
+    templates[vt] = getFormsForVisaType(vt).map(f => ({
+      form_number: f.form_number,
+      name: f.name,
+      category: f.category,
+      field_count: Object.keys(f.field_mappings).length,
+    }));
+  }
+  res.json({ visa_types: visaTypes, templates });
+});
+
+// GET /clients/:id/ircc-forms — get required IRCC forms for a client based on visa type
+router.get('/clients/:id/ircc-forms', async (req, res) => {
+  try {
+    const client = await prepareGet('SELECT * FROM clients WHERE id = ?', req.params.id);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+
+    const visaType = client.visa_type || 'Express Entry';
+    const formTemplates = getFormsForVisaType(visaType);
+
+    // Check which forms have already been generated
+    const existingFilled = await prepareAll(
+      'SELECT original_form_name FROM filled_forms WHERE client_id = ?',
+      req.params.id
+    );
+    const filledNames = new Set(existingFilled.map(f => f.original_form_name));
+
+    const forms = formTemplates.map(f => ({
+      form_number: f.form_number,
+      name: f.name,
+      category: f.category,
+      url: f.url,
+      field_count: Object.keys(f.field_mappings).length,
+      already_filled: filledNames.has(`${f.form_number} - ${f.name}.pdf`),
+    }));
+
+    res.json({ visa_type: visaType, client_name: `${client.first_name} ${client.last_name}`, forms });
+  } catch (err) {
+    console.error('Error getting IRCC forms:', err);
+    res.status(500).json({ error: 'Failed to get IRCC forms' });
+  }
+});
+
+// POST /clients/:id/ircc-forms/generate — download IRCC form template, fill with client data, save
+router.post('/clients/:id/ircc-forms/generate', async (req, res) => {
+  try {
+    const { form_number } = req.body;
+    const clientId = parseInt(req.params.id);
+
+    const { client, dataMap } = await buildFullClientDataMap(clientId);
+    const visaType = client.visa_type || 'Express Entry';
+    const formTemplates = getFormsForVisaType(visaType);
+    const template = formTemplates.find(f => f.form_number === form_number);
+
+    if (!template) {
+      return res.status(404).json({ error: `Form ${form_number} not found for visa type ${visaType}` });
+    }
+
+    // Build form-specific data using the template's field mappings
+    const formDataMap = buildFormDataMap(template, dataMap);
+    // Also include the raw data map for fuzzy matching in fillPDFForm
+    const mergedDataMap = { ...dataMap, ...formDataMap };
+
+    // Try to download the IRCC form PDF
+    const formsDir = path.join(__dirname, '..', 'uploads', 'ircc-forms');
+    if (!fs.existsSync(formsDir)) fs.mkdirSync(formsDir, { recursive: true });
+
+    const templateFilename = `${template.form_number.replace(/\s+/g, '_')}.pdf`;
+    const templatePath = path.join(formsDir, templateFilename);
+
+    // Download if not cached
+    if (!fs.existsSync(templatePath)) {
+      try {
+        console.log(`Downloading IRCC form: ${template.form_number} from ${template.url}`);
+        const response = await fetch(template.url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const buffer = Buffer.from(await response.arrayBuffer());
+        fs.writeFileSync(templatePath, buffer);
+        console.log(`Downloaded and cached: ${templateFilename}`);
+      } catch (downloadErr) {
+        console.error(`Could not download ${template.form_number}:`, downloadErr.message);
+        // Generate a summary PDF instead
+        return await generateSummaryPDF(res, template, mergedDataMap, clientId, client);
+      }
+    }
+
+    // Fill the downloaded form
+    const filledDir = path.join(__dirname, '..', 'uploads', 'filled');
+    if (!fs.existsSync(filledDir)) fs.mkdirSync(filledDir, { recursive: true });
+    const filledFilename = `filled_${uuidv4()}.pdf`;
+    const filledPath = path.join(filledDir, filledFilename);
+
+    const fillResult = await fillPDFForm(templatePath, mergedDataMap, filledPath);
+
+    // Save to filled_forms table
+    // First check if we have a forms entry for this template
+    let formId;
+    const existingForm = await prepareGet(
+      'SELECT id FROM forms WHERE client_id = ? AND form_name = ?',
+      clientId, `${template.form_number} - ${template.name}`
+    );
+
+    if (existingForm) {
+      formId = existingForm.id;
+    } else {
+      const formResult = await prepareRun(
+        `INSERT INTO forms (client_id, filename, original_name, file_path, form_name, field_count, fields_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        clientId, templateFilename, `${template.form_number} - ${template.name}.pdf`,
+        templatePath, `${template.form_number} - ${template.name}`,
+        Object.keys(template.field_mappings).length, '[]'
+      );
+      formId = formResult.lastInsertRowid;
+    }
+
+    const insertResult = await prepareRun(
+      `INSERT INTO filled_forms (form_id, client_id, file_path, original_form_name) VALUES (?, ?, ?, ?)`,
+      formId, clientId, filledPath, `${template.form_number} - ${template.name}.pdf`
+    );
+
+    const filledForm = await prepareGet('SELECT * FROM filled_forms WHERE id = ?', insertResult.lastInsertRowid);
+
+    res.json({
+      ...filledForm,
+      form_number: template.form_number,
+      form_name: template.name,
+      fields_filled: fillResult.fieldsFilled,
+      fields_total: fillResult.fieldsTotal,
+      download_url: `/api/filled-forms/${filledForm.id}/download`,
+    });
+  } catch (err) {
+    console.error('Error generating IRCC form:', err);
+    res.status(500).json({ error: 'Failed to generate form: ' + err.message });
+  }
+});
+
+// POST /clients/:id/ircc-forms/generate-all — generate all required forms for a client
+router.post('/clients/:id/ircc-forms/generate-all', async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.id);
+    const { client, dataMap } = await buildFullClientDataMap(clientId);
+    const visaType = client.visa_type || 'Express Entry';
+    const formTemplates = getFormsForVisaType(visaType);
+
+    const results = [];
+    const formsDir = path.join(__dirname, '..', 'uploads', 'ircc-forms');
+    const filledDir = path.join(__dirname, '..', 'uploads', 'filled');
+    if (!fs.existsSync(formsDir)) fs.mkdirSync(formsDir, { recursive: true });
+    if (!fs.existsSync(filledDir)) fs.mkdirSync(filledDir, { recursive: true });
+
+    for (const template of formTemplates) {
+      try {
+        const formDataMap = buildFormDataMap(template, dataMap);
+        const mergedDataMap = { ...dataMap, ...formDataMap };
+
+        const templateFilename = `${template.form_number.replace(/\s+/g, '_')}.pdf`;
+        const templatePath = path.join(formsDir, templateFilename);
+
+        // Download if not cached
+        if (!fs.existsSync(templatePath)) {
+          try {
+            const response = await fetch(template.url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const buffer = Buffer.from(await response.arrayBuffer());
+            fs.writeFileSync(templatePath, buffer);
+          } catch {
+            // Skip forms that can't be downloaded
+            results.push({
+              form_number: template.form_number,
+              name: template.name,
+              error: 'Could not download form template',
+            });
+            continue;
+          }
+        }
+
+        const filledFilename = `filled_${uuidv4()}.pdf`;
+        const filledPath = path.join(filledDir, filledFilename);
+        const fillResult = await fillPDFForm(templatePath, mergedDataMap, filledPath);
+
+        let formId;
+        const existingForm = await prepareGet(
+          'SELECT id FROM forms WHERE client_id = ? AND form_name = ?',
+          clientId, `${template.form_number} - ${template.name}`
+        );
+        if (existingForm) {
+          formId = existingForm.id;
+        } else {
+          const formResult = await prepareRun(
+            `INSERT INTO forms (client_id, filename, original_name, file_path, form_name, field_count, fields_json)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            clientId, templateFilename, `${template.form_number} - ${template.name}.pdf`,
+            templatePath, `${template.form_number} - ${template.name}`,
+            Object.keys(template.field_mappings).length, '[]'
+          );
+          formId = formResult.lastInsertRowid;
+        }
+
+        const insertResult = await prepareRun(
+          `INSERT INTO filled_forms (form_id, client_id, file_path, original_form_name) VALUES (?, ?, ?, ?)`,
+          formId, clientId, filledPath, `${template.form_number} - ${template.name}.pdf`
+        );
+
+        const filledForm = await prepareGet('SELECT * FROM filled_forms WHERE id = ?', insertResult.lastInsertRowid);
+        results.push({
+          ...filledForm,
+          form_number: template.form_number,
+          form_name: template.name,
+          fields_filled: fillResult.fieldsFilled,
+          fields_total: fillResult.fieldsTotal,
+          download_url: `/api/filled-forms/${filledForm.id}/download`,
+        });
+      } catch (e) {
+        results.push({
+          form_number: template.form_number,
+          name: template.name,
+          error: e.message,
+        });
+      }
+    }
+
+    res.json({
+      visa_type: visaType,
+      client_name: `${client.first_name} ${client.last_name}`,
+      total: formTemplates.length,
+      generated: results.filter(r => !r.error).length,
+      results,
+    });
+  } catch (err) {
+    console.error('Error generating all IRCC forms:', err);
+    res.status(500).json({ error: 'Failed to generate forms' });
+  }
+});
+
+/**
+ * Fallback: generate a summary PDF when the IRCC form can't be downloaded
+ */
+async function generateSummaryPDF(res, template, dataMap, clientId, client) {
+  const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+  const filledDir = path.join(__dirname, '..', 'uploads', 'filled');
+  if (!fs.existsSync(filledDir)) fs.mkdirSync(filledDir, { recursive: true });
+
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const page = pdfDoc.addPage([612, 792]);
+
+  let y = 740;
+  page.drawText(`${template.form_number} — ${template.name}`, {
+    x: 50, y, size: 16, font: boldFont, color: rgb(0.1, 0.1, 0.4)
+  });
+  y -= 25;
+  page.drawText(`Client: ${client.first_name} ${client.last_name}`, {
+    x: 50, y, size: 12, font, color: rgb(0.3, 0.3, 0.3)
+  });
+  y -= 15;
+  page.drawText(`Visa Type: ${client.visa_type || 'N/A'} | Generated: ${new Date().toLocaleString()}`, {
+    x: 50, y, size: 10, font, color: rgb(0.5, 0.5, 0.5)
+  });
+  y -= 30;
+
+  page.drawLine({ start: { x: 50, y }, end: { x: 562, y }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+  y -= 25;
+
+  page.drawText('PRE-FILLED DATA FOR THIS FORM:', {
+    x: 50, y, size: 12, font: boldFont, color: rgb(0.2, 0.2, 0.2)
+  });
+  y -= 25;
+
+  const formDataMap = buildFormDataMap(template, dataMap);
+  for (const [field, value] of Object.entries(formDataMap)) {
+    if (y < 80) {
+      const newPage = pdfDoc.addPage([612, 792]);
+      y = 740;
+    }
+    if (value) {
+      page.drawText(`${field}:`, { x: 60, y, size: 10, font: boldFont, color: rgb(0.3, 0.3, 0.3) });
+      page.drawText(String(value).substring(0, 60), { x: 220, y, size: 10, font, color: rgb(0.1, 0.1, 0.1) });
+      y -= 18;
+    }
+  }
+
+  y -= 20;
+  page.drawText('Note: Could not download the official IRCC form template.', {
+    x: 50, y, size: 9, font, color: rgb(0.6, 0.3, 0.3)
+  });
+  y -= 14;
+  page.drawText(`Download it manually from: ${template.url}`, {
+    x: 50, y, size: 8, font, color: rgb(0.4, 0.4, 0.4)
+  });
+
+  const filledFilename = `filled_${uuidv4()}.pdf`;
+  const filledPath = path.join(filledDir, filledFilename);
+  const savedBytes = await pdfDoc.save();
+  fs.writeFileSync(filledPath, savedBytes);
+
+  // Save to DB
+  const formResult = await prepareRun(
+    `INSERT INTO forms (client_id, filename, original_name, file_path, form_name, field_count, fields_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    clientId, filledFilename, `${template.form_number} - ${template.name}.pdf`,
+    filledPath, `${template.form_number} - ${template.name}`,
+    Object.keys(template.field_mappings).length, '[]'
+  );
+
+  const insertResult = await prepareRun(
+    `INSERT INTO filled_forms (form_id, client_id, file_path, original_form_name) VALUES (?, ?, ?, ?)`,
+    formResult.lastInsertRowid, clientId, filledPath, `${template.form_number} - ${template.name}.pdf`
+  );
+
+  const filledForm = await prepareGet('SELECT * FROM filled_forms WHERE id = ?', insertResult.lastInsertRowid);
+  res.json({
+    ...filledForm,
+    form_number: template.form_number,
+    form_name: template.name,
+    fields_filled: Object.values(formDataMap).filter(v => v).length,
+    fields_total: Object.keys(template.field_mappings).length,
+    download_url: `/api/filled-forms/${filledForm.id}/download`,
+    note: 'Generated summary PDF (official form template unavailable)',
+  });
+}
+
+module.exports = router;

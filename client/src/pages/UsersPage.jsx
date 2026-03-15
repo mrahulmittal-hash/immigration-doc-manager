@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Shield, Briefcase, Eye, KeyRound, Users, CheckCircle, Clock, Crown, Trash2, Pause, Play, X, Lightbulb, Check } from 'lucide-react';
 
 const ROLES = ['Admin', 'Case Manager', 'Viewer'];
 
@@ -6,19 +7,19 @@ const ROLE_INFO = {
   Admin: {
     color: 'var(--accent-purple)',
     bg: 'rgba(139,92,246,.15)',
-    icon: '👑',
+    Icon: Crown,
     perms: ['Full system access', 'Manage users & roles', 'Billing & retainers', 'All client data', 'Settings & configuration'],
   },
   'Case Manager': {
     color: 'var(--primary)',
     bg: 'var(--primary-glow)',
-    icon: '💼',
+    Icon: Briefcase,
     perms: ['View & edit clients', 'Send PIF forms', 'Upload documents', 'Manage tasks & calendar', 'View retainers (read only)'],
   },
   Viewer: {
     color: 'var(--accent-teal)',
     bg: 'rgba(20,184,166,.15)',
-    icon: '👁',
+    Icon: Eye,
     perms: ['View clients (read only)', 'View documents (read only)', 'View calendar', 'No editing permissions'],
   },
 };
@@ -45,7 +46,7 @@ export default function UsersPage() {
 
   async function fetchUsers() {
     try {
-      const res = await fetch('http://localhost:5000/api/users');
+      const res = await fetch('/api/users');
       if (!res.ok) throw new Error('Failed to fetch users');
       const data = await res.json();
       setUsers(data);
@@ -92,7 +93,7 @@ export default function UsersPage() {
           <div className="page-subtitle">Manage team members and their access roles</div>
         </div>
         <div className="flex gap-8">
-          <button className="btn btn-ghost" onClick={() => setShowRole(true)}>🔑 Role Permissions</button>
+          <button className="btn btn-ghost" onClick={() => setShowRole(true)} style={{display:'flex',alignItems:'center',gap:6}}><KeyRound size={14} /> Role Permissions</button>
           <button className="btn btn-primary" onClick={() => setShowInvite(true)}>+ Invite User</button>
         </div>
       </div>
@@ -100,22 +101,22 @@ export default function UsersPage() {
       {/* Stats */}
       <div className="stats-grid" style={{ marginBottom: 24 }}>
         <div className="stat-card blue">
-          <div className="stat-icon">👥</div>
+          <div className="stat-icon" style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Users size={22} /></div>
           <div className="stat-value">{users.length}</div>
           <div className="stat-label">Total Users</div>
         </div>
         <div className="stat-card green">
-          <div className="stat-icon">✅</div>
+          <div className="stat-icon" style={{display:'flex',alignItems:'center',justifyContent:'center'}}><CheckCircle size={22} /></div>
           <div className="stat-value">{active}</div>
           <div className="stat-label">Active</div>
         </div>
         <div className="stat-card amber">
-          <div className="stat-icon">⏳</div>
+          <div className="stat-icon" style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Clock size={22} /></div>
           <div className="stat-value">{pending}</div>
           <div className="stat-label">Pending Invite</div>
         </div>
         <div className="stat-card purple">
-          <div className="stat-icon">👑</div>
+          <div className="stat-icon" style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Crown size={22} /></div>
           <div className="stat-value">{users.filter(u => u.role === 'Admin').length}</div>
           <div className="stat-label">Admins</div>
         </div>
@@ -144,6 +145,7 @@ export default function UsersPage() {
                 </tr>
               ) : users.map((u, idx) => {
                 const ri = ROLE_INFO[u.role];
+                const RoleIcon = ri.Icon;
                 return (
                   <tr key={u.id}>
                     <td>
@@ -166,7 +168,7 @@ export default function UsersPage() {
                         padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
                         background: ri.bg, color: ri.color,
                       }}>
-                        {ri.icon} {u.role}
+                        <RoleIcon size={12} /> {u.role}
                       </span>
                     </td>
                     <td>
@@ -185,12 +187,12 @@ export default function UsersPage() {
                         <button className="btn btn-ghost btn-sm" onClick={() => setEditUser(u)}>Change Role</button>
                         <button
                           className="btn btn-ghost btn-sm"
-                          style={{ color: u.status === 'active' ? 'var(--accent-amber)' : 'var(--accent-green)' }}
+                          style={{ color: u.status === 'active' ? 'var(--accent-amber)' : 'var(--accent-green)', display:'flex', alignItems:'center', gap:4 }}
                           onClick={() => toggleStatus(u.id)}
                         >
-                          {u.status === 'active' ? '⏸ Deactivate' : '▶ Activate'}
+                          {u.status === 'active' ? <><Pause size={12} /> Deactivate</> : <><Play size={12} /> Activate</>}
                         </button>
-                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--accent-red)' }} onClick={() => removeUser(u.id)}>🗑</button>
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--accent-red)', display:'flex', alignItems:'center' }} onClick={() => removeUser(u.id)}><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -205,22 +207,25 @@ export default function UsersPage() {
       <div className="card" style={{ marginTop: 20 }}>
         <div className="card-title" style={{ marginBottom: 16 }}>Role Capabilities</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px,1fr))', gap: 14 }}>
-          {Object.entries(ROLE_INFO).map(([role, ri]) => (
-            <div key={role} style={{
-              background: 'var(--bg-elevated)', border: `1px solid ${ri.color}30`,
-              borderRadius: 'var(--radius)', padding: '16px 16px',
-              borderTop: `3px solid ${ri.color}`,
-            }}>
-              <div style={{ fontSize: 20, marginBottom: 6 }}>{ri.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: ri.color }}>{role}</div>
-              {ri.perms.map(p => (
-                <div key={p} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
-                  <span style={{ color: 'var(--accent-green)', marginTop: 1, flexShrink: 0 }}>✓</span>
-                  {p}
-                </div>
-              ))}
-            </div>
-          ))}
+          {Object.entries(ROLE_INFO).map(([role, ri]) => {
+            const RoleIcon = ri.Icon;
+            return (
+              <div key={role} style={{
+                background: 'var(--bg-elevated)', border: `1px solid ${ri.color}30`,
+                borderRadius: 'var(--radius)', padding: '16px 16px',
+                borderTop: `3px solid ${ri.color}`,
+              }}>
+                <div style={{ marginBottom: 6, color: ri.color }}><RoleIcon size={22} /></div>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: ri.color }}>{role}</div>
+                {ri.perms.map(p => (
+                  <div key={p} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                    <span style={{ color: 'var(--accent-green)', marginTop: 1, flexShrink: 0 }}><Check size={12} /></span>
+                    {p}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -230,11 +235,11 @@ export default function UsersPage() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title">Invite Team Member</div>
-              <button className="modal-close" onClick={() => setShowInvite(false)}>×</button>
+              <button className="modal-close" onClick={() => setShowInvite(false)}><X size={18} /></button>
             </div>
             <div style={{ marginBottom: 16 }}>
-              <div style={{ background: 'rgba(59,130,246,.08)', border: '1px solid var(--primary-glow)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
-                💡 An invitation email will be sent to the new team member with instructions to set up their account.
+              <div style={{ background: 'rgba(59,130,246,.08)', border: '1px solid var(--primary-glow)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, display:'flex', alignItems:'center', gap:8 }}>
+                <Lightbulb size={14} /> An invitation email will be sent to the new team member with instructions to set up their account.
               </div>
               <div className="form-group" style={{ marginBottom: 12 }}>
                 <label className="form-label">Full Name</label>
@@ -249,11 +254,15 @@ export default function UsersPage() {
                 <select className="form-select" value={invite.role} onChange={e => setInvite({ ...invite, role: e.target.value })}>
                   {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
-                {invite.role && (
-                  <div style={{ marginTop: 8, padding: '8px 12px', background: ROLE_INFO[invite.role].bg, borderRadius: 6, fontSize: 11, color: ROLE_INFO[invite.role].color }}>
-                    {ROLE_INFO[invite.role].icon} {ROLE_INFO[invite.role].perms.join(' · ')}
-                  </div>
-                )}
+                {invite.role && (() => {
+                  const ri = ROLE_INFO[invite.role];
+                  const RoleIcon = ri.Icon;
+                  return (
+                    <div style={{ marginTop: 8, padding: '8px 12px', background: ri.bg, borderRadius: 6, fontSize: 11, color: ri.color, display:'flex', alignItems:'center', gap:6 }}>
+                      <RoleIcon size={12} /> {ri.perms.join(' · ')}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
             <div className="modal-footer">
@@ -270,11 +279,12 @@ export default function UsersPage() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title">Change Role — {editUser.name}</div>
-              <button className="modal-close" onClick={() => setEditUser(null)}>×</button>
+              <button className="modal-close" onClick={() => setEditUser(null)}><X size={18} /></button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {ROLES.map(r => {
                 const ri = ROLE_INFO[r];
+                const RoleIcon = ri.Icon;
                 const selected = editUser.role === r;
                 return (
                   <div
@@ -288,7 +298,7 @@ export default function UsersPage() {
                     }}
                   >
                     <div className="flex-center gap-10" style={{ marginBottom: 6 }}>
-                      <span style={{ fontSize: 18 }}>{ri.icon}</span>
+                      <span style={{ color: ri.color }}><RoleIcon size={18} /></span>
                       <span style={{ fontWeight: 700, color: ri.color }}>{r}</span>
                       {selected && <span style={{ marginLeft: 'auto', background: ri.color, color: '#fff', fontSize: 10, padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>Current</span>}
                     </div>

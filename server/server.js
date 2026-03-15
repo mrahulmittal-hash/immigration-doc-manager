@@ -20,6 +20,13 @@ const formsRouter = require('./routes/forms');
 const clientDataRouter = require('./routes/clientData');
 const pifRouter = require('./routes/pif');
 const usersRouter = require('./routes/users');
+const timelineRouter = require('./routes/timeline');
+const notesRouter = require('./routes/notes');
+const irccRouter = require('./routes/irccUpdates');
+const deadlinesRouter = require('./routes/deadlines');
+const checklistsRouter = require('./routes/checklists');
+const emailsRouter = require('./routes/emails');
+const irccFormsRouter = require('./routes/irccForms');
 
 // Mount routes
 // Staff-facing routes protected by requireAuth (Cognito JWT or dev pass-through)
@@ -28,6 +35,13 @@ app.use('/api', requireAuth, documentsRouter);
 app.use('/api', requireAuth, formsRouter);
 app.use('/api', requireAuth, clientDataRouter);
 app.use('/api/users', requireAuth, usersRouter);
+app.use('/api', requireAuth, timelineRouter);
+app.use('/api', requireAuth, notesRouter);
+app.use('/api', requireAuth, irccRouter);
+app.use('/api', requireAuth, deadlinesRouter);
+app.use('/api', requireAuth, checklistsRouter);
+app.use('/api', requireAuth, emailsRouter);
+app.use('/api', requireAuth, irccFormsRouter);
 // PIF routes are PUBLIC (magic-link flow — no Cognito login required for clients)
 app.use('/api/pif', pifRouter);
 
@@ -82,6 +96,14 @@ async function start() {
     await initDatabase();
     app.listen(PORT, () => {
         console.log(`PropAgent API running on http://localhost:${PORT}`);
+    });
+
+    const cron = require('node-cron');
+    const { scrapeIRCCNews } = require('./services/irccAgent');
+    // Scrape IRCC news daily at 8 AM
+    cron.schedule('0 8 * * *', () => {
+      console.log('Running scheduled IRCC news scrape...');
+      scrapeIRCCNews().catch(err => console.error('Scheduled scrape failed:', err));
     });
 }
 

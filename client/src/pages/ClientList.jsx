@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { Search, Users, Trash2, CheckCircle, Mail, Clock, Globe } from 'lucide-react';
 
 const STATUS_OPTS = ['all', 'active', 'inactive'];
 const PIF_OPTS   = ['all', 'pending', 'sent', 'completed'];
-const VISA_TYPES = ['Express Entry', 'Study Permit', 'Work Permit', 'Spousal Sponsorship', 'Visitor Visa', 'PR Application', 'Citizenship', 'Other'];
 
 export default function ClientList() {
   const [clients, setClients] = useState([]);
@@ -33,6 +33,7 @@ export default function ClientList() {
   }
 
   const pifBadge = { pending:'badge-warning', sent:'badge-primary', completed:'badge-success' };
+  const pifIcon = { pending: Clock, sent: Mail, completed: CheckCircle };
 
   return (
     <div className="page-enter">
@@ -47,19 +48,19 @@ export default function ClientList() {
       {/* Modern Filters */}
       <div className="card" style={{ padding: '16px 20px', marginBottom: 20, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 280, position: 'relative' }}>
-          <span style={{ position: 'absolute', left: 14, top: 10, opacity: 0.5, fontSize: 13 }}>🔍</span>
-          <input 
-            placeholder="Search by name, email, or nationality..." 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
+          <span style={{ position: 'absolute', left: 14, top: 11, color: 'var(--text-muted)' }}><Search size={14} /></span>
+          <input
+            placeholder="Search by name, email, or nationality..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
             style={{
               width: '100%', padding: '10px 14px 10px 36px', borderRadius: 8,
-              background: 'var(--bg-app)', border: '1px solid var(--border)',
+              background: 'var(--bg-surface)', border: '1px solid var(--border)',
               color: 'var(--text-primary)', fontSize: 13, outline: 'none'
             }}
           />
         </div>
-        
+
         <div style={{ display: 'flex', gap: 12 }}>
           <select className="form-select" style={{ minWidth: 150 }} value={status} onChange={e => setStatus(e.target.value)}>
             {STATUS_OPTS.map(s => <option key={s} value={s}>{s === 'all' ? 'All Account Status' : `Account: ${s.charAt(0).toUpperCase()+s.slice(1)}`}</option>)}
@@ -74,7 +75,7 @@ export default function ClientList() {
 
       {!loading && filtered.length === 0 && (
         <div className="empty">
-          <div className="empty-icon">👥</div>
+          <div className="empty-icon"><Users size={32} /></div>
           <div className="empty-title">No clients found</div>
           <div className="empty-text">Try changing your search or filters</div>
           <Link to="/clients/new" className="btn btn-primary" style={{ marginTop:12 }}>+ New Client</Link>
@@ -84,20 +85,22 @@ export default function ClientList() {
       {!loading && filtered.length > 0 && (
         <div className="card" style={{ padding:0, overflow:'hidden', border: '1px solid var(--border)', borderRadius: 12 }}>
           <div className="table-wrap">
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table>
               <thead>
-                <tr style={{ background: 'var(--bg-hover)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  <th style={{ padding: '16px 20px', fontWeight: 600 }}>Client Name</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 600 }}>Contact Info</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 600 }}>Application</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 600 }}>PIF Status</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 600 }}>Account</th>
-                  <th style={{ padding: '16px 20px', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                <tr>
+                  <th style={{ padding: '16px 20px' }}>Client Name</th>
+                  <th style={{ padding: '16px 20px' }}>Contact Info</th>
+                  <th style={{ padding: '16px 20px' }}>Application</th>
+                  <th style={{ padding: '16px 20px' }}>PIF Status</th>
+                  <th style={{ padding: '16px 20px' }}>Account</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((c, i) => (
-                  <tr key={c.id} style={{ borderBottom: i === filtered.length - 1 ? 'none' : '1px solid var(--border)', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                {filtered.map(c => {
+                  const PifIcon = pifIcon[c.pif_status] || Clock;
+                  return (
+                  <tr key={c.id}>
                     <td style={{ padding: '16px 20px' }}>
                       <div style={{ display:'flex', alignItems:'center', gap:12 }}>
                         <div style={{
@@ -113,7 +116,9 @@ export default function ClientList() {
                           <Link to={`/clients/${c.id}`} style={{ fontWeight:700, color:'var(--text-primary)', fontSize:14, textDecoration: 'none' }}>
                             {c.first_name} {c.last_name}
                           </Link>
-                          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop: 2 }}>{c.nationality ? `🇨🇦 ${c.nationality}` : 'No nationality listed'}</div>
+                          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop: 2, display:'flex', alignItems:'center', gap:4 }}>
+                            {c.nationality ? <><Globe size={10} /> {c.nationality}</> : 'No nationality listed'}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -123,17 +128,12 @@ export default function ClientList() {
                     </td>
                     <td style={{ padding: '16px 20px' }}>
                       {c.visa_type ? (
-                        <span style={{ 
-                          background: 'rgba(59,130,246,0.1)', color: '#60a5fa', 
-                          padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 
-                        }}>
-                          {c.visa_type}
-                        </span>
+                        <span className="badge badge-primary">{c.visa_type}</span>
                       ) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
                     </td>
                     <td style={{ padding: '16px 20px' }}>
-                      <span className={`badge ${pifBadge[c.pif_status] || 'badge-gray'}`} style={{ padding: '4px 10px', fontSize: 11 }}>
-                        {c.pif_status === 'completed' ? '✓ Completed' : c.pif_status === 'sent' ? '✉ Sent' : '⏳ Pending'}
+                      <span className={`badge ${pifBadge[c.pif_status] || 'badge-gray'}`} style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                        <PifIcon size={12} /> {c.pif_status === 'completed' ? 'Completed' : c.pif_status === 'sent' ? 'Sent' : 'Pending'}
                       </span>
                     </td>
                     <td style={{ padding: '16px 20px' }}>
@@ -146,12 +146,13 @@ export default function ClientList() {
                     </td>
                     <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                       <div style={{ display:'flex', gap:8, justifyContent: 'flex-end' }}>
-                        <Link to={`/clients/${c.id}`} className="btn btn-ghost btn-sm" style={{ background: 'rgba(255,255,255,0.03)' }}>View File</Link>
-                        <button className="btn btn-ghost btn-sm" style={{ color:'#ef4444', background: 'rgba(239, 68, 68, 0.05)' }} onClick={() => deleteClient(c.id)}>🗑</button>
+                        <Link to={`/clients/${c.id}`} className="btn btn-ghost btn-sm">View File</Link>
+                        <button className="btn btn-ghost btn-sm" style={{ color:'#ef4444', display:'flex', alignItems:'center' }} onClick={() => deleteClient(c.id)}><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

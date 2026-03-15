@@ -333,4 +333,166 @@ router.post('/data/:clientId/verify', async (req, res) => {
     }
 });
 
+// PUT /api/pif/data/:clientId — Admin edits PIF data
+router.put('/data/:clientId', async (req, res) => {
+    try {
+        const clientId = parseInt(req.params.clientId);
+        const { form_data } = req.body;
+        if (!form_data) return res.status(400).json({ error: 'form_data is required' });
+
+        const existing = await prepareGet('SELECT * FROM pif_submissions WHERE client_id = ?', clientId);
+        if (!existing) {
+            return res.status(404).json({ error: 'No PIF submission found for this client.' });
+        }
+
+        await prepareRun(
+            'UPDATE pif_submissions SET form_data = ?, updated_at = NOW() WHERE client_id = ?',
+            JSON.stringify(form_data), clientId
+        );
+
+        res.json({ success: true, message: 'PIF data updated successfully' });
+    } catch (err) {
+        console.error('Error updating PIF data:', err);
+        res.status(500).json({ error: 'Failed to update PIF data' });
+    }
+});
+
+// GET /api/pif/data/:clientId/ocr — Get OCR extracted data from all PIF-uploaded documents
+router.get('/data/:clientId/ocr', async (req, res) => {
+    try {
+        const clientId = parseInt(req.params.clientId);
+
+        const docs = await prepareAll(
+            "SELECT * FROM documents WHERE client_id = ? AND source = 'pif-upload' ORDER BY category, created_at",
+            clientId
+        );
+
+        const { extractTextFromPDF } = require('../services/pdfParser');
+        const ocrResults = [];
+
+        for (const doc of docs) {
+            const result = {
+                id: doc.id,
+                original_name: doc.original_name,
+                category: doc.category,
+                file_size: doc.file_size,
+                created_at: doc.created_at,
+                extracted_text: null,
+                extracted_data: null,
+                is_image_only: false,
+                error: null,
+            };
+
+            if (doc.original_name.toLowerCase().match(/\.(pdf)$/)) {
+                if (doc.extracted_text) {
+                    result.extracted_text = doc.extracted_text;
+                    // Re-parse structured data from text
+                    try {
+                        const filePath = doc.file_path?.startsWith('s3://')
+                            ? null : doc.file_path;
+                        if (filePath && fs.existsSync(filePath)) {
+                            const parsed = await extractTextFromPDF(filePath);
+                            result.extracted_data = parsed.data || {};
+                            result.is_image_only = parsed.isImageOnly || false;
+                        } else {
+                            // Parse from cached text using regex
+                            result.extracted_data = parseFieldsFromText(doc.extracted_text);
+                        }
+                    } catch (e) {
+                        result.extracted_data = parseFieldsFromText(doc.extracted_text);
+                    }
+                } else {
+                    // Extract fresh
+                    const filePath = doc.file_path?.startsWith('s3://')
+                        ? null : doc.file_path;
+                    if (filePath && fs.existsSync(filePath)) {
+                        try {
+                            const parsed = await extractTextFromPDF(filePath);
+                            result.extracted_text = parsed.text || '';
+                            result.extracted_data = parsed.data || {};
+                            result.is_image_only = parsed.isImageOnly || false;
+                            // Cache the extracted text
+                            if (parsed.text) {
+                                await prepareRun('UPDATE documents SET extracted_text = ? WHERE id = ?', parsed.text, doc.id);
+                            }
+                        } catch (e) {
+                            result.error = 'Failed to extract text from PDF';
+                        }
+                    } else {
+                        result.error = 'File not accessible';
+                    }
+                }
+            } else if (doc.original_name.toLowerCase().match(/\.(png|jpg|jpeg|gif|bmp|tiff)$/)) {
+                result.error = 'Image OCR requires external service (not yet configured)';
+                result.is_image_only = true;
+            }
+
+            ocrResults.push(result);
+        }
+
+        // Build a merged field map from all OCR results
+        const mergedOcrData = {};
+        for (const r of ocrResults) {
+            if (r.extracted_data) {
+                for (const [key, value] of Object.entries(r.extracted_data)) {
+                    if (value && !mergedOcrData[key]) {
+                        mergedOcrData[key] = { value, source_doc: r.original_name, doc_id: r.id };
+                    }
+                }
+            }
+        }
+
+        res.json({
+            documents: ocrResults,
+            merged_data: mergedOcrData,
+            total_docs: docs.length,
+        });
+
+    } catch (err) {
+        console.error('Error getting OCR data:', err);
+        res.status(500).json({ error: 'Failed to get OCR data' });
+    }
+});
+
+// Helper: parse common fields from raw text
+function parseFieldsFromText(text) {
+    if (!text) return {};
+    const data = {};
+    const t = text;
+
+    // Name patterns
+    const nameMatch = t.match(/(?:surname|family name|last name)[:\s]*([A-Za-z\s-]+)/i);
+    if (nameMatch) data.last_name = nameMatch[1].trim();
+    const givenMatch = t.match(/(?:given name|first name|forename)[:\s]*([A-Za-z\s-]+)/i);
+    if (givenMatch) data.first_name = givenMatch[1].trim();
+
+    // Passport
+    const passportMatch = t.match(/(?:passport|document)\s*(?:no|number|#)[.:\s]*([A-Z0-9]{5,12})/i);
+    if (passportMatch) data.passport_number = passportMatch[1].trim();
+
+    // DOB
+    const dobMatch = t.match(/(?:date of birth|birth date|dob|born)[:\s]*(\d{1,2}[\s/.-]\w{3,9}[\s/.-]\d{4}|\d{4}[\s/.-]\d{2}[\s/.-]\d{2})/i);
+    if (dobMatch) data.date_of_birth = dobMatch[1].trim();
+
+    // Nationality
+    const natMatch = t.match(/(?:nationality|citizenship)[:\s]*([A-Za-z\s]+)/i);
+    if (natMatch) data.nationality = natMatch[1].trim().substring(0, 40);
+
+    // Place of birth
+    const pobMatch = t.match(/(?:place of birth|birth place|born in)[:\s]*([A-Za-z\s,]+)/i);
+    if (pobMatch) data.place_of_birth = pobMatch[1].trim().substring(0, 60);
+
+    // Gender
+    const genderMatch = t.match(/(?:sex|gender)[:\s]*(male|female|m|f)/i);
+    if (genderMatch) data.sex = genderMatch[1].trim();
+
+    // Dates
+    const issueMatch = t.match(/(?:date of issue|issued?)[:\s]*(\d{1,2}[\s/.-]\w{3,9}[\s/.-]\d{4}|\d{4}[\s/.-]\d{2}[\s/.-]\d{2})/i);
+    if (issueMatch) data.date_of_issue = issueMatch[1].trim();
+    const expiryMatch = t.match(/(?:date of expiry|expir\w*|valid until)[:\s]*(\d{1,2}[\s/.-]\w{3,9}[\s/.-]\d{4}|\d{4}[\s/.-]\d{2}[\s/.-]\d{2})/i);
+    if (expiryMatch) data.date_of_expiry = expiryMatch[1].trim();
+
+    return data;
+}
+
 module.exports = router;

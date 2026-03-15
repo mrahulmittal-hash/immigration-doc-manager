@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 const STEPS = [
   { id: 'personal',     title: 'Personal Info',       icon: '👤', desc: 'Your basic identification details' },

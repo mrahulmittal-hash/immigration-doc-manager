@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Building2 } from 'lucide-react';
 
 export default function LoginPage({ onLogin }) {
     const [email, setEmail] = useState('');
@@ -13,16 +14,15 @@ export default function LoginPage({ onLogin }) {
         setLoading(true);
 
         try {
-            const res = await fetch('http://localhost:5000/api/users/login', {
+            const res = await fetch('/api/users/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
             });
 
             const data = await res.json();
-            
+
             if (res.ok) {
-                // In a real app, store JWT in localStorage. Here we just store the user object.
                 localStorage.setItem('crm_user', JSON.stringify(data.user));
                 onLogin(data.user);
                 navigate('/');
@@ -43,15 +43,15 @@ export default function LoginPage({ onLogin }) {
         }}>
             <div className="card" style={{
                 width: '100%', maxWidth: 400, padding: 40, borderRadius: 24,
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.1)'
             }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 30 }}>
                     <div style={{
                         width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg, var(--primary), var(--accent-purple))',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, marginBottom: 16,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16,
                         boxShadow: '0 8px 16px var(--primary-glow)'
                     }}>
-                        🏢
+                        <Building2 size={28} color="#fff" />
                     </div>
                     <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>PropAgent CRM</h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>Sign in to manage your practice</p>
@@ -90,7 +90,7 @@ export default function LoginPage({ onLogin }) {
                     >
                         {loading ? 'Signing in...' : 'Sign In'}
                     </button>
-                    
+
                     <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
                         <p>For demo purposes, use <strong style={{ color: 'var(--text-secondary)' }}>sarah@propagent.ca</strong></p>
                     </div>

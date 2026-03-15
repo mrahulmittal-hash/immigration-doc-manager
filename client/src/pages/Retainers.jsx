@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DollarSign, Clock, ClipboardList, CheckCircle, X } from 'lucide-react';
 
 const SAMPLE_RETAINERS = [
   { id:1, client:'Anish Sharma',    service:'Express Entry',       amount:3500, paid:3500, status:'paid',    date:'2026-02-01', due:'2026-02-28' },
@@ -27,7 +28,6 @@ export default function Retainers() {
   const totalCollected = retainers.reduce((s,r) => s + r.paid, 0);
   const totalOutstanding = totalBilled - totalCollected;
   const paidCount  = retainers.filter(r => r.status === 'paid').length;
-  const pendCount  = retainers.filter(r => r.status !== 'paid').length;
 
   function addRetainer() {
     if (!newR.client || !newR.amount) return;
@@ -54,22 +54,22 @@ export default function Retainers() {
       {/* Finance stats */}
       <div className="stats-grid">
         <div className="stat-card green">
-          <div className="stat-icon">💰</div>
+          <div className="stat-icon" style={{display:'flex',alignItems:'center',justifyContent:'center'}}><DollarSign size={22} /></div>
           <div className="stat-value">{fmt(totalCollected)}</div>
           <div className="stat-label">Total Collected</div>
         </div>
         <div className="stat-card amber">
-          <div className="stat-icon">⏳</div>
+          <div className="stat-icon" style={{display:'flex',alignItems:'center',justifyContent:'center'}}><Clock size={22} /></div>
           <div className="stat-value">{fmt(totalOutstanding)}</div>
           <div className="stat-label">Outstanding</div>
         </div>
         <div className="stat-card blue">
-          <div className="stat-icon">📋</div>
+          <div className="stat-icon" style={{display:'flex',alignItems:'center',justifyContent:'center'}}><ClipboardList size={22} /></div>
           <div className="stat-value">{fmt(totalBilled)}</div>
           <div className="stat-label">Total Billed</div>
         </div>
         <div className="stat-card purple">
-          <div className="stat-icon">✅</div>
+          <div className="stat-icon" style={{display:'flex',alignItems:'center',justifyContent:'center'}}><CheckCircle size={22} /></div>
           <div className="stat-value">{paidCount}/{retainers.length}</div>
           <div className="stat-label">Paid in Full</div>
         </div>
@@ -161,7 +161,7 @@ export default function Retainers() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title">New Retainer Agreement</div>
-              <button className="modal-close" onClick={() => setShowNew(false)}>×</button>
+              <button className="modal-close" onClick={() => setShowNew(false)}><X size={18} /></button>
             </div>
             <div className="form-grid">
               <div className="form-group form-full">

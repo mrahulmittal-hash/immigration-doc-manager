@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
 
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -34,7 +35,6 @@ export default function CalendarPage() {
   const dim  = daysInMonth(cur.y, cur.m);
   const fd   = firstDay(cur.y, cur.m);
   const cells = [];
-  // blanks
   for (let i=0; i < fd; i++) cells.push(null);
   for (let d=1; d <= dim; d++) cells.push(d);
 
@@ -55,10 +55,6 @@ export default function CalendarPage() {
     setShowNew(false);
   }
 
-  const todayEvents = events.filter(e => e.date === isoDate(now.getDate())).concat(
-    events.filter(e => e.date > isoDate(now.getDate())).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4)
-  );
-
   return (
     <div className="page-enter">
       <div className="page-header">
@@ -72,10 +68,10 @@ export default function CalendarPage() {
       <div className="grid-2" style={{ gap:24, alignItems:'flex-start' }}>
         {/* Calendar grid */}
         <div className="card" style={{ padding:0, overflow:'hidden', border: '1px solid var(--border)', borderRadius: 12 }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'20px 24px', borderBottom:'1px solid rgba(255,255,255,0.05)', background: 'rgba(255,255,255,0.02)' }}>
-            <button className="btn btn-ghost btn-sm" onClick={prev} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: 32, height: 32, padding: 0, borderRadius: 8 }}>←</button>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'20px 24px', borderBottom:'1px solid var(--border-light)', background: 'var(--bg-base)' }}>
+            <button className="btn btn-ghost btn-sm" onClick={prev} style={{ background: 'var(--bg-elevated)', border: 'none', width: 32, height: 32, padding: 0, borderRadius: 8, display:'flex', alignItems:'center', justifyContent:'center' }}><ChevronLeft size={16} /></button>
             <div style={{ fontWeight:800, fontSize:16, letterSpacing: '-0.02em' }}>{MONTHS[cur.m]} {cur.y}</div>
-            <button className="btn btn-ghost btn-sm" onClick={next} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: 32, height: 32, padding: 0, borderRadius: 8 }}>→</button>
+            <button className="btn btn-ghost btn-sm" onClick={next} style={{ background: 'var(--bg-elevated)', border: 'none', width: 32, height: 32, padding: 0, borderRadius: 8, display:'flex', alignItems:'center', justifyContent:'center' }}><ChevronRight size={16} /></button>
           </div>
           <div className="cal-grid" style={{ border: 'none', borderRadius: 0 }}>
             {DAYS.map(d => <div key={d} className="cal-header-cell">{d}</div>)}
@@ -103,7 +99,7 @@ export default function CalendarPage() {
           </div>
           <div style={{ display:'flex', gap:12, marginBottom:20 }}>
             {[['consultation','Consultation','#60a5fa'],['deadline','Deadline','#f87171'],['reminder','Reminder','#fbbf24']].map(([t,l,c]) => (
-              <div key={t} className="flex-center gap-8" style={{ fontSize:12, color:c, fontWeight:600, background: 'rgba(255,255,255,0.03)', padding: '4px 10px', borderRadius: 20 }}>
+              <div key={t} className="flex-center gap-8" style={{ fontSize:12, color:c, fontWeight:600, background: 'var(--bg-elevated)', padding: '4px 10px', borderRadius: 20 }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:c, boxShadow: `0 0 6px ${c}` }} />
                 {l}
               </div>
@@ -111,8 +107,8 @@ export default function CalendarPage() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {events.sort((a,b)=>a.date.localeCompare(b.date)).map((ev, i) => (
-              <div key={i} style={{ display:'flex', alignItems:'center', gap:16, padding:'12px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.03)' }}>
-                <div style={{ width:48, height: 48, borderRadius: 8, background: 'rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign:'center', flexShrink: 0 }}>
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:16, padding:'12px', background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
+                <div style={{ width:48, height: 48, borderRadius: 8, background: 'var(--bg-elevated)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign:'center', flexShrink: 0 }}>
                   <div style={{ fontSize:14, color:'var(--text-primary)', fontWeight:800, lineHeight: 1 }}>
                     {ev.date.split('-')[2]}
                   </div>
@@ -128,13 +124,13 @@ export default function CalendarPage() {
                     </span>
                   </div>
                 </div>
-                <button style={{ background:'rgba(239, 68, 68, 0.1)', border:'none', color:'#ef4444', cursor:'pointer', width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}
-                  onClick={() => setEvents(prev => prev.filter(e => e !== ev))}>×</button>
+                <button style={{ background:'rgba(239, 68, 68, 0.1)', border:'none', color:'#ef4444', cursor:'pointer', width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onClick={() => setEvents(prev => prev.filter(e => e !== ev))}><X size={14} /></button>
               </div>
             ))}
             {events.length === 0 && (
-              <div className="empty" style={{ background: 'transparent', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                <div className="empty-icon">📅</div>
+              <div className="empty" style={{ background: 'transparent', border: '1px dashed var(--border)' }}>
+                <div className="empty-icon"><Calendar size={32} /></div>
                 <div className="empty-title">No events</div>
               </div>
             )}
@@ -148,7 +144,7 @@ export default function CalendarPage() {
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title">Add Calendar Event</div>
-              <button className="modal-close" onClick={() => setShowNew(false)}>×</button>
+              <button className="modal-close" onClick={() => setShowNew(false)}><X size={18} /></button>
             </div>
             <div className="form-grid">
               <div className="form-group form-full">

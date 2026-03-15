@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Search, Bell, MessageSquare } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Pipeline from './pages/Pipeline';
@@ -11,27 +12,52 @@ import CalendarPage from './pages/CalendarPage';
 import Retainers from './pages/Retainers';
 import PIFForm from './pages/PIFForm';
 import UsersPage from './pages/UsersPage';
+import ImmigrationUpdates from './pages/ImmigrationUpdates';
+import EmailSettings from './pages/EmailSettings';
 import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
 import './index.css';
 
-function AdminShell({ children, user }) {
-  const initials = user?.name ? user.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() : 'SK';
+const BREADCRUMBS = {
+  '/': 'Dashboard',
+  '/pipeline': 'Pipeline',
+  '/clients': 'Clients',
+  '/clients/new': 'New Client',
+  '/tasks': 'Tasks',
+  '/calendar': 'Calendar',
+  '/retainers': 'Retainers',
+  '/users': 'User Management',
+  '/ircc-updates': 'IRCC Updates',
+  '/settings/email': 'Email Integration',
+};
 
+function Breadcrumb() {
+  const location = useLocation();
+  const path = location.pathname;
+  const label = BREADCRUMBS[path] || (path.startsWith('/clients/') ? 'Client Detail' : 'Dashboard');
+  return <div className="topbar-title">{label}</div>;
+}
+
+function AdminShell({ children, user }) {
   return (
     <div className="app-shell">
       <Sidebar user={user} />
       <div className="main-area">
         <header className="topbar">
-          <div className="topbar-title">Overview</div>
+          <Breadcrumb />
           <div className="topbar-search">
-            <span style={{opacity: 0.6}}>🔍</span>
+            <Search size={14} style={{ opacity: 0.5 }} />
             <input type="text" placeholder="Quick search..." />
-            <span style={{ opacity: 0.5, fontSize: 10, background:'rgba(255,255,255,0.1)', padding:'2px 6px', borderRadius:4 }}>⌘K</span>
+            <kbd className="topbar-kbd">⌘K</kbd>
           </div>
           <div className="topbar-actions">
-            <button className="topbar-btn">🔔</button>
-            <button className="topbar-btn">💬</button>
+            <button className="topbar-btn">
+              <Bell size={18} />
+              <span className="topbar-btn-dot" />
+            </button>
+            <button className="topbar-btn">
+              <MessageSquare size={18} />
+            </button>
           </div>
         </header>
         <div className="page-content page-enter">
@@ -46,7 +72,6 @@ export default function App() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Check if user is already logged in (simulated auth persistence)
     const stored = localStorage.getItem('crm_user');
     if (stored) {
       setUser(JSON.parse(stored));
@@ -81,6 +106,8 @@ export default function App() {
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/retainers" element={<Retainers />} />
                   <Route path="/users" element={<UsersPage />} />
+                  <Route path="/ircc-updates" element={<ImmigrationUpdates />} />
+                  <Route path="/settings/email" element={<EmailSettings />} />
                   <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
               </AdminShell>

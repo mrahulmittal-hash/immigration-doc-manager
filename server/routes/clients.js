@@ -159,6 +159,22 @@ router.put('/:id', async (req, res) => {
     }
 });
 
+// PATCH /api/clients/:id/stage - Update pipeline stage
+router.patch('/:id/stage', async (req, res) => {
+  try {
+    const { stage } = req.body;
+    const validStages = ['lead', 'consultation', 'retainer_signed', 'in_progress', 'submitted', 'approved'];
+    if (!validStages.includes(stage)) {
+      return res.status(400).json({ error: 'Invalid stage' });
+    }
+    await prepareRun('UPDATE clients SET pipeline_stage = ? WHERE id = ?', stage, parseInt(req.params.id));
+    res.json({ message: 'Stage updated' });
+  } catch (err) {
+    console.error('Error updating pipeline stage:', err);
+    res.status(500).json({ error: 'Failed to update stage' });
+  }
+});
+
 // DELETE /api/clients/:id - Delete client
 router.delete('/:id', async (req, res) => {
     try {
