@@ -13,7 +13,7 @@ import IRCCFormGenerator from '../components/IRCCFormGenerator';
 import RetainerPanel from '../components/RetainerPanel';
 import EmployerLink from '../components/EmployerLink';
 import DependentsPanel from '../components/DependentsPanel';
-import { Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key, CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap, Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks, Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck, CreditCard, Briefcase, Users, Camera } from 'lucide-react';
+import { Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key, CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap, Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks, Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck, CreditCard, Briefcase, Users, Camera, Paperclip } from 'lucide-react';
 
 const VISA_COLORS = {
   'Express Entry':        'badge-primary',
@@ -73,6 +73,7 @@ export default function ClientDetail() {
   const [sendingPif, setSendingPif] = useState(false);
   const [verificationResults, setVerificationResults] = useState(null);
   const [verifying, setVerifying] = useState(false);
+  const [emailsWithAttachments, setEmailsWithAttachments] = useState([]);
 
   const fetchClient = useCallback(async () => {
     try {
@@ -100,6 +101,13 @@ export default function ClientDetail() {
   }, [id]);
 
   useEffect(() => { if (activeTab === 'pif' && !pifData) fetchPifData(); }, [activeTab]);
+  useEffect(() => {
+    if (activeTab === 'documents') {
+      api.getClientEmails(id).then(emails => {
+        setEmailsWithAttachments(emails.filter(e => e.has_attachments));
+      }).catch(() => {});
+    }
+  }, [activeTab, id]);
 
   /* ── Handlers ──────────────────────────────────────────── */
   const wrap = (fn, msg) => async (...args) => {
@@ -464,6 +472,7 @@ export default function ClientDetail() {
                               <div style={{display:'flex',gap:5,marginTop:2}}>
                                 {doc.extracted_text && <span className="badge badge-success" style={{fontSize:10}}>Extracted</span>}
                                 {doc.source==='pif-upload' && <span className="badge badge-purple" style={{fontSize:10}}>Client Upload</span>}
+                                {doc.source==='email' && <span className="badge badge-warning" style={{fontSize:10}}>From Email</span>}
                               </div>
                             </div>
                           </div>
@@ -484,6 +493,41 @@ export default function ClientDetail() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── Email Attachments ──────────────────────────────── */}
+          {emailsWithAttachments.length > 0 && (
+            <div className="card email-docs-section">
+              <div className="card-header">
+                <div className="card-title" style={{display:'flex',alignItems:'center',gap:6}}>
+                  <Paperclip size={14} /> Documents from Client Emails
+                </div>
+                <span className="badge badge-warning">{emailsWithAttachments.length} email{emailsWithAttachments.length !== 1 ? 's' : ''} with attachments</span>
+              </div>
+              <div style={{padding:'12px 16px',fontSize:12,color:'var(--text-muted)',background:'rgba(245,158,11,.05)',borderBottom:'1px solid var(--border)'}}>
+                Emails received from this client that contain file attachments. Connect Outlook in Settings to sync and save attachments as documents.
+              </div>
+              <div style={{padding:16}}>
+                {emailsWithAttachments.map(email => (
+                  <div key={email.id} className="email-doc-card">
+                    <div className="email-doc-info">
+                      <div className="email-doc-icon">
+                        <Paperclip size={16} color="#f59e0b" />
+                      </div>
+                      <div className="email-doc-meta">
+                        <div className="email-doc-subject">{email.subject}</div>
+                        <div className="email-doc-from">
+                          From: {email.from_name || email.from_email} · {new Date(email.received_at).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="badge badge-warning" style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                      <Paperclip size={10} /> Has Attachments
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
