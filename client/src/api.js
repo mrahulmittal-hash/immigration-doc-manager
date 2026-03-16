@@ -22,6 +22,7 @@ export const api = {
     createClient: (data) => request('/clients', { method: 'POST', body: JSON.stringify(data) }),
     updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteClient: (id) => request(`/clients/${id}`, { method: 'DELETE' }),
+    getDeadlines: (clientId) => request(`/clients/${clientId}/deadlines`),
 
     // Documents
     uploadDocuments: (clientId, files, category = 'general') => {
@@ -117,6 +118,7 @@ export const api = {
     verifyPIFData: (clientId) => request(`/pif/data/${clientId}/verify`, { method: 'POST' }),
     updatePIFData: (clientId, formData) => request(`/pif/data/${clientId}`, { method: 'PUT', body: JSON.stringify({ form_data: formData }) }),
     getPIFOcrData: (clientId) => request(`/pif/data/${clientId}/ocr`),
+    autoFillPIF: (clientId) => request(`/pif/data/${clientId}/autofill`, { method: 'POST' }),
 
     // OCR
     ocrDocument: (docId) => request(`/documents/${docId}/ocr`, { method: 'POST' }),

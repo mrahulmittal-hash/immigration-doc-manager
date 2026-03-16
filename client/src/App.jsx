@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, CheckSquare, Calendar, CreditCard,
   Newspaper, UserCog, Mail, LogOut, ChevronDown, Settings, Briefcase
@@ -132,19 +132,31 @@ function AdminShell({ children, user, onLogout }) {
   );
 }
 
-export default function App() {
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
+function getStoredUser() {
+  try {
     const stored = localStorage.getItem('crm_user');
-    if (stored) {
-      setUser(JSON.parse(stored));
-    }
-  }, []);
+    return stored ? JSON.parse(stored) : null;
+  } catch { return null; }
+}
+
+export default function App() {
+  const [user, setUser] = useState(getStoredUser);
 
   const handleLogout = () => {
     setUser(null);
   };
+
+  const ProtectedLayout = () => (
+    user ? (
+      <SessionWrapper user={user} onLogout={handleLogout}>
+        <AdminShell user={user} onLogout={handleLogout}>
+          <Outlet />
+        </AdminShell>
+      </SessionWrapper>
+    ) : (
+      <Navigate to="/login" />
+    )
+  );
 
   return (
     <BrowserRouter>
@@ -157,34 +169,25 @@ export default function App() {
         <Route path="/sign/:token" element={<SignPage />} />
         <Route path="/portal/:token/*" element={<ClientPortal />} />
 
-        {/* Protected Admin shell */}
-        <Route path="/*" element={
-          user ? (
-            <SessionWrapper user={user} onLogout={handleLogout}>
-              <AdminShell user={user} onLogout={handleLogout}>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/pipeline" element={<Pipeline />} />
-                  <Route path="/clients" element={<ClientList />} />
-                  <Route path="/clients/new" element={<CreateClient />} />
-                  <Route path="/clients/:id" element={<ClientDetail />} />
-                  <Route path="/tasks" element={<Tasks />} />
-                  <Route path="/calendar" element={<CalendarPage />} />
-                  <Route path="/retainers" element={<TrustAccounting />} />
-                  <Route path="/users" element={<UsersPage />} />
-                  <Route path="/ircc-updates" element={<ImmigrationUpdates />} />
-                  <Route path="/settings/email" element={<EmailSettings />} />
-                  <Route path="/employers" element={<Employers />} />
-                  <Route path="/employers/:id" element={<EmployerDetail />} />
-                  <Route path="/lmia" element={<LMIADashboard />} />
-                  <Route path="*" element={<Navigate to="/" />} />
-                </Routes>
-              </AdminShell>
-            </SessionWrapper>
-          ) : (
-            <Navigate to="/login" />
-          )
-        } />
+        {/* Protected Admin routes */}
+        <Route element={<ProtectedLayout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/pipeline" element={<Pipeline />} />
+          <Route path="/clients" element={<ClientList />} />
+          <Route path="/clients/new" element={<CreateClient />} />
+          <Route path="/clients/:id" element={<ClientDetail />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/retainers" element={<TrustAccounting />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/ircc-updates" element={<ImmigrationUpdates />} />
+          <Route path="/settings/email" element={<EmailSettings />} />
+          <Route path="/employers" element={<Employers />} />
+          <Route path="/employers/:id" element={<EmployerDetail />} />
+          <Route path="/lmia" element={<LMIADashboard />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   );

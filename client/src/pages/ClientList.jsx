@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import { Search, Users, Trash2, CheckCircle, Mail, Clock, Globe, Stamp } from 'lucide-react';
+import { Search, Users, Trash2, CheckCircle, Mail, Clock, Globe, Stamp, Phone, Pencil, Plus, ArrowRight, Calendar, Upload, AlertTriangle, MessageSquare, ListChecks, Send, Briefcase } from 'lucide-react';
+import NotesPanel from '../components/NotesPanel';
+import CaseLifecycle from '../components/CaseLifecycle';
 
 const PIPELINE_STAGES = [
   { id: 'lead',            label: 'Lead',            color: '#656d76' },
@@ -62,6 +64,15 @@ export default function ClientList() {
   const [deadlines, setDeadlines] = useState([]);
   const navigate = useNavigate();
 
+  const deleteClient = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this client?')) return;
+    try {
+      await api.deleteClient(id);
+      setClients(prev => prev.filter(c => c.id !== id));
+      if (selectedId === id) { setSelectedId(null); setSelectedClient(null); }
+    } catch (e) { console.error('Delete failed:', e); }
+  };
+
   useEffect(() => {
     api.getClients().then(data => {
       setClients(data);
@@ -106,8 +117,8 @@ export default function ClientList() {
   };
 
   const stageBadge = (stage) => {
-    const s = PIPELINE_STAGES[stage] || PIPELINE_STAGES.lead;
-    return { background: s.bg, color: s.color, border: `1px solid ${s.color}33` };
+    const s = PIPELINE_STAGES.find(p => p.id === stage) || PIPELINE_STAGES[0];
+    return { background: `${s.color}18`, color: s.color, border: `1px solid ${s.color}33` };
   };
 
   function getDaysUntil(ds) { return Math.ceil((new Date(ds) - new Date()) / (1000 * 60 * 60 * 24)); }
@@ -155,7 +166,7 @@ export default function ClientList() {
           {filtered.map(c => {
             const isActive = c.id === selectedId;
             const pifMeta = PIF_META[c.pif_status] || PIF_META.pending;
-            const stage = PIPELINE_STAGES[c.pipeline_stage] || PIPELINE_STAGES.lead;
+            const stage = PIPELINE_STAGES.find(p => p.id === c.pipeline_stage) || PIPELINE_STAGES[0];
             return (
               <div
                 key={c.id}
@@ -193,6 +204,7 @@ export default function ClientList() {
         </div>
       </div>
 
+      <div className="clients-center">
       {loading && <div className="spinner-container"><div className="spinner" /></div>}
 
       {!loading && filtered.length === 0 && (
@@ -288,6 +300,7 @@ export default function ClientList() {
               </tbody>
             </table>
           </div>
+        </div>
         )}
 
         {detailLoading && (
@@ -473,7 +486,7 @@ export default function ClientList() {
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 20,
                 }}>
-                  {(PIPELINE_STAGES[selectedClient.pipeline_stage] || PIPELINE_STAGES.lead).label}
+                  {(PIPELINE_STAGES.find(p => p.id === selectedClient.pipeline_stage) || PIPELINE_STAGES[0]).label}
                 </span>
               </div>
             </div>

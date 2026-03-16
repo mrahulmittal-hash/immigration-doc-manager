@@ -54,14 +54,17 @@ router.put('/data/:clientId', async (req, res) => {
         if (!form_data) return res.status(400).json({ error: 'form_data is required' });
 
         const existing = await prepareGet('SELECT * FROM pif_submissions WHERE client_id = ?', clientId);
-        if (!existing) {
-            return res.status(404).json({ error: 'No PIF submission found for this client.' });
+        if (existing) {
+            await prepareRun(
+                'UPDATE pif_submissions SET form_data = ?, updated_at = NOW() WHERE client_id = ?',
+                JSON.stringify(form_data), clientId
+            );
+        } else {
+            await prepareRun(
+                'INSERT INTO pif_submissions (client_id, form_data) VALUES (?, ?)',
+                clientId, JSON.stringify(form_data)
+            );
         }
-
-        await prepareRun(
-            'UPDATE pif_submissions SET form_data = ?, updated_at = NOW() WHERE client_id = ?',
-            JSON.stringify(form_data), clientId
-        );
 
         res.json({ success: true, message: 'PIF data updated successfully' });
     } catch (err) {
