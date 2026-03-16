@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import {
   FileText, Search, Upload, Download, Trash2, CheckCircle, Clock,
-  FolderOpen, Globe, Eye
+  FolderOpen, Globe, Eye, UserCheck
 } from 'lucide-react';
 import PDFFormViewer from '../components/PDFFormViewer';
 
@@ -34,9 +34,16 @@ export default function IRCCTemplates() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [uploading, setUploading] = useState(null);
   const [viewingForm, setViewingForm] = useState(null);
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
   const fileRef = useRef();
 
-  useEffect(() => { loadTemplates(); }, []);
+  useEffect(() => { loadTemplates(); loadClients(); }, []);
+
+  const loadClients = async () => {
+    try { const c = await api.getClients(); setClients(c); }
+    catch { /* ignore */ }
+  };
 
   const loadTemplates = async () => {
     try {
@@ -191,8 +198,13 @@ export default function IRCCTemplates() {
                           <>
                             <button className="btn btn-primary btn-sm"
                               style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
-                              onClick={() => setViewingForm({ formNumber: form.form_number, formName: form.name || form.form_number })}>
-                              <Eye size={12} /> View / Edit
+                              onClick={() => setViewingForm({
+                                formNumber: form.form_number,
+                                formName: form.name || form.form_number,
+                                clientId: selectedClient?.id,
+                                clientName: selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name}` : undefined,
+                              })}>
+                              <Eye size={12} /> {selectedClient ? 'View & Fill' : 'View / Edit'}
                             </button>
                             <a href={api.downloadIRCCTemplate(form.form_number)}
                               className="btn btn-ghost btn-sm" target="_blank" rel="noreferrer"
@@ -225,6 +237,27 @@ export default function IRCCTemplates() {
 
       {/* ═══ RIGHT CONTEXT PANEL ═══ */}
       <div className="clients-context">
+        {/* Client Selector for Auto-Fill */}
+        <div className="clients-ctx-section">
+          <div className="clients-ctx-label">Auto-Fill with Client</div>
+          <select className="form-select" style={{ width: '100%', marginBottom: 8, fontSize: 12 }}
+            value={selectedClient?.id || ''}
+            onChange={e => {
+              const c = clients.find(c => c.id === Number(e.target.value));
+              setSelectedClient(c || null);
+            }}>
+            <option value="">— No client (blank forms) —</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.first_name} {c.last_name}{c.visa_type ? ` (${c.visa_type})` : ''}</option>
+            ))}
+          </select>
+          {selectedClient && (
+            <div style={{ fontSize: 11, color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <CheckCircle size={12} /> Forms will auto-fill with {selectedClient.first_name}'s data
+            </div>
+          )}
+        </div>
+
         {/* Template Stats */}
         <div className="clients-ctx-section">
           <div className="clients-ctx-label">Template Stats</div>
@@ -287,6 +320,8 @@ export default function IRCCTemplates() {
         <PDFFormViewer
           formNumber={viewingForm.formNumber}
           formName={viewingForm.formName}
+          clientId={viewingForm.clientId}
+          clientName={viewingForm.clientName}
           onClose={() => setViewingForm(null)}
         />
       )}

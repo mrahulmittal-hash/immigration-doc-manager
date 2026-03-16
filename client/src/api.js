@@ -170,6 +170,7 @@ export const api = {
 
     // IRCC Template Viewer/Editor
     getIRCCTemplateFields: (formNumber) => request(`/ircc-templates/${encodeURIComponent(formNumber)}/fields`),
+    getIRCCTemplateFieldsForClient: (formNumber, clientId) => request(`/ircc-templates/${encodeURIComponent(formNumber)}/fields/${clientId}`),
     viewIRCCTemplate: (formNumber) => `${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/view`,
     fillIRCCTemplate: (formNumber, fields) => {
         return fetch(`${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/fill`, {

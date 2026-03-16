@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { api } from '../api';
 import {
   X, Download, FileText, AlertTriangle, CheckCircle, Loader,
-  Eye, Edit3, RotateCcw
+  Edit3, RotateCcw, User
 } from 'lucide-react';
+import PDFRenderer from './PDFRenderer';
 
 const FIELD_SECTIONS = {
   personal: {
@@ -58,21 +59,15 @@ function categorizeFields(fields) {
     }
   }
 
-  // Remaining uncategorized
   const remaining = fields.filter(f => !used.has(f.name));
   if (remaining.length > 0) {
-    sections.push({
-      key: 'uncategorized',
-      label: 'Additional Fields',
-      color: '#6b7280',
-      fields: remaining,
-    });
+    sections.push({ key: 'uncategorized', label: 'Additional Fields', color: '#6b7280', fields: remaining });
   }
 
   return sections;
 }
 
-export default function PDFFormViewer({ formNumber, formName, onClose }) {
+export default function PDFFormViewer({ formNumber, formName, onClose, clientId, clientName }) {
   const [fields, setFields] = useState([]);
   const [formType, setFormType] = useState('unknown');
   const [values, setValues] = useState({});
@@ -80,10 +75,9 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
   const [filling, setFilling] = useState(false);
   const [error, setError] = useState(null);
   const [filledCount, setFilledCount] = useState(0);
+  const [autoFilled, setAutoFilled] = useState(false);
 
-  useEffect(() => {
-    loadFields();
-  }, [formNumber]);
+  useEffect(() => { loadFields(); }, [formNumber, clientId]);
 
   useEffect(() => {
     setFilledCount(Object.values(values).filter(v => v && String(v).trim()).length);
@@ -92,14 +86,17 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
   const loadFields = async () => {
     setLoading(true);
     setError(null);
+    setAutoFilled(false);
     try {
-      const data = await api.getIRCCTemplateFields(formNumber);
+      const data = clientId
+        ? await api.getIRCCTemplateFieldsForClient(formNumber, clientId)
+        : await api.getIRCCTemplateFields(formNumber);
       setFields(data.fields || []);
       setFormType(data.form_type || 'unknown');
-      // Initialize empty values
       const initial = {};
-      (data.fields || []).forEach(f => { initial[f.name] = ''; });
+      (data.fields || []).forEach(f => { initial[f.name] = f.value || ''; });
       setValues(initial);
+      if (clientId && data.fields?.some(f => f.value)) setAutoFilled(true);
     } catch (err) {
       setError('Failed to load form fields: ' + err.message);
     }
@@ -117,7 +114,7 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${formNumber} (Filled).pdf`;
+      a.download = `${formNumber}${clientName ? ` - ${clientName}` : ''} (Filled).pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -132,6 +129,7 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
     const initial = {};
     fields.forEach(f => { initial[f.name] = ''; });
     setValues(initial);
+    setAutoFilled(false);
   };
 
   const pdfUrl = api.viewIRCCTemplate(formNumber);
@@ -166,7 +164,8 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
                 {formNumber}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {formName} · {formType === 'acroform' ? 'Interactive Form' : 'XML-Based Form'}
+                {formName}
+                {clientName && <> · <User size={10} style={{ display: 'inline', verticalAlign: 'middle' }} /> {clientName}</>}
               </div>
             </div>
           </div>
@@ -178,9 +177,9 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
             }}>
               {formType === 'acroform' ? 'AcroForm' : 'XFA'}
             </span>
-            <button className="modal-close" onClick={onClose} style={{
-              width: 36, height: 36, borderRadius: 10,
-            }}><X size={18} /></button>
+            <button className="modal-close" onClick={onClose} style={{ width: 36, height: 36, borderRadius: 10 }}>
+              <X size={18} />
+            </button>
           </div>
         </div>
 
@@ -191,21 +190,7 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
             flex: '0 0 55%', borderRight: '1px solid var(--border-light)',
             display: 'flex', flexDirection: 'column', background: '#525659',
           }}>
-            <div style={{
-              padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,.1)',
-              display: 'flex', alignItems: 'center', gap: 8,
-              background: 'rgba(0,0,0,.2)', flexShrink: 0,
-            }}>
-              <Eye size={14} color="#fff" />
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>PDF Preview</span>
-            </div>
-            <iframe
-              src={pdfUrl}
-              title={`${formNumber} PDF Preview`}
-              style={{
-                flex: 1, width: '100%', border: 'none',
-              }}
-            />
+            <PDFRenderer url={pdfUrl} isXfa={formType === 'xfa'} />
           </div>
 
           {/* Right: Form Fields Editor */}
@@ -238,8 +223,23 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
               </button>
             </div>
 
+            {/* Auto-fill Banner */}
+            {autoFilled && clientName && (
+              <div style={{
+                margin: '12px 16px 0', padding: '10px 14px', borderRadius: 8,
+                background: 'rgba(16,185,129,.06)', border: '1px solid rgba(16,185,129,.15)',
+                display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+              }}>
+                <CheckCircle size={16} color="#10b981" style={{ flexShrink: 0 }} />
+                <div style={{ fontSize: 11, color: '#065f46', lineHeight: 1.5 }}>
+                  Auto-filled with <strong>{clientName}</strong>&apos;s PIF data.
+                  Review and edit fields as needed before downloading.
+                </div>
+              </div>
+            )}
+
             {/* XFA Warning Banner */}
-            {formType === 'xfa' && (
+            {formType === 'xfa' && !autoFilled && (
               <div style={{
                 margin: '12px 16px 0', padding: '10px 14px', borderRadius: 8,
                 background: 'rgba(245,158,11,.06)', border: '1px solid rgba(245,158,11,.15)',
@@ -247,9 +247,8 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
               }}>
                 <AlertTriangle size={16} color="#f59e0b" style={{ flexShrink: 0, marginTop: 1 }} />
                 <div style={{ fontSize: 11, color: '#92400e', lineHeight: 1.5 }}>
-                  This form uses <strong>XFA (XML-based)</strong> formatting. The PDF preview may not
-                  render all fields correctly in the browser. Fill the fields below and click
-                  <strong> Fill &amp; Download</strong> to generate a completed PDF.
+                  This form uses <strong>XFA (XML-based)</strong> formatting.
+                  Fill the fields below and click <strong>Fill &amp; Download</strong> to generate a completed PDF.
                 </div>
               </div>
             )}
@@ -265,9 +264,7 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
                   <div style={{ fontSize: 13 }}>Analyzing form fields...</div>
                 </div>
               ) : error ? (
-                <div style={{
-                  padding: 20, textAlign: 'center', color: '#ef4444', fontSize: 13,
-                }}>
+                <div style={{ padding: 20, textAlign: 'center', color: '#ef4444', fontSize: 13 }}>
                   <AlertTriangle size={24} style={{ marginBottom: 8 }} />
                   <div>{error}</div>
                 </div>
@@ -287,19 +284,14 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
                       display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
                       paddingBottom: 6, borderBottom: `2px solid ${section.color}20`,
                     }}>
-                      <div style={{
-                        width: 8, height: 8, borderRadius: '50%',
-                        background: section.color,
-                      }} />
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: section.color }} />
                       <span style={{
                         fontSize: 11, fontWeight: 800, color: section.color,
                         textTransform: 'uppercase', letterSpacing: '0.05em',
                       }}>
                         {section.label}
                       </span>
-                      <span style={{
-                        fontSize: 10, color: 'var(--text-muted)', fontWeight: 600,
-                      }}>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
                         ({section.fields.length})
                       </span>
                     </div>
@@ -313,58 +305,43 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
                           }}>
                             {field.label}
                             {field.clientField && (
-                              <span style={{
-                                fontSize: 9, color: 'var(--text-muted)',
-                                marginLeft: 6, fontWeight: 400,
-                              }}>
+                              <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 6, fontWeight: 400 }}>
                                 → {field.clientField}
                               </span>
                             )}
                           </label>
 
                           {field.type === 'checkbox' ? (
-                            <label style={{
-                              display: 'flex', alignItems: 'center', gap: 8,
-                              fontSize: 12, cursor: 'pointer',
-                            }}>
-                              <input
-                                type="checkbox"
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                              <input type="checkbox"
                                 checked={values[field.name] === 'true' || values[field.name] === true}
                                 onChange={e => handleChange(field.name, e.target.checked ? 'true' : '')}
-                                style={{ width: 16, height: 16 }}
-                              />
+                                style={{ width: 16, height: 16 }} />
                               <span style={{ color: 'var(--text-secondary)' }}>Checked</span>
                             </label>
                           ) : field.type === 'dropdown' && field.options ? (
-                            <select
-                              className="form-select"
-                              value={values[field.name] || ''}
+                            <select className="form-select" value={values[field.name] || ''}
                               onChange={e => handleChange(field.name, e.target.value)}
-                              style={{ fontSize: 12, padding: '6px 10px', height: 32 }}
-                            >
+                              style={{ fontSize: 12, padding: '6px 10px', height: 32 }}>
                               <option value="">— Select —</option>
-                              {field.options.map(opt => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
+                              {field.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                             </select>
                           ) : field.type === 'signature' ? (
                             <div style={{
                               padding: '6px 10px', fontSize: 11, color: 'var(--text-muted)',
                               background: 'var(--bg-elevated)', borderRadius: 6,
-                              border: '1px dashed var(--border)',
-                              fontStyle: 'italic',
-                            }}>
-                              Sign after printing
-                            </div>
+                              border: '1px dashed var(--border)', fontStyle: 'italic',
+                            }}>Sign after printing</div>
                           ) : (
-                            <input
-                              className="form-input"
-                              type="text"
+                            <input className="form-input" type="text"
                               value={values[field.name] || ''}
                               onChange={e => handleChange(field.name, e.target.value)}
                               placeholder={field.label}
-                              style={{ fontSize: 12, padding: '6px 10px', height: 32 }}
-                            />
+                              style={{
+                                fontSize: 12, padding: '6px 10px', height: 32,
+                                borderColor: values[field.name] && autoFilled ? 'rgba(16,185,129,.3)' : undefined,
+                                background: values[field.name] && autoFilled ? 'rgba(16,185,129,.03)' : undefined,
+                              }} />
                           )}
                         </div>
                       ))}
@@ -387,24 +364,14 @@ export default function PDFFormViewer({ formNumber, formName, onClose }) {
                       <CheckCircle size={12} color="#10b981" />
                       {filledCount} of {fields.length} fields filled
                     </span>
-                  ) : (
-                    'Fill in fields to generate a completed PDF'
-                  )}
+                  ) : 'Fill in fields to generate a completed PDF'}
                 </div>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleFillAndDownload}
+                <button className="btn btn-primary" onClick={handleFillAndDownload}
                   disabled={filling || filledCount === 0}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    fontSize: 12, padding: '8px 16px',
-                  }}
-                >
-                  {filling ? (
-                    <><Loader size={14} className="spin" /> Generating...</>
-                  ) : (
-                    <><Download size={14} /> Fill &amp; Download</>
-                  )}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '8px 16px' }}>
+                  {filling
+                    ? <><Loader size={14} className="spin" /> Generating...</>
+                    : <><Download size={14} /> Fill &amp; Download</>}
                 </button>
               </div>
             )}

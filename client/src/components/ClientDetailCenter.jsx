@@ -10,6 +10,7 @@ import DocumentChecklist from './DocumentChecklist';
 import EmailList from './EmailList';
 import IRCCFormGenerator from './IRCCFormGenerator';
 import FormEditor from './FormEditor';
+import PDFFormViewer from './PDFFormViewer';
 import WorkflowStages from './WorkflowStages';
 import SignatureManager from './SignatureManager';
 import TrustAccountPanel from './TrustAccountPanel';
@@ -20,7 +21,7 @@ import {
   CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap,
   Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks,
   Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck,
-  ScanLine, Wallet, Link2, CheckSquare
+  ScanLine, Wallet, Link2, CheckSquare, Eye
 } from 'lucide-react';
 
 const VISA_COLORS = {
@@ -82,6 +83,9 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
   const [ocrData, setOcrData] = useState(null);
   const [ocrLoading, setOcrLoading] = useState(null);
   const [sendingPortal, setSendingPortal] = useState(false);
+  const [irccTemplates, setIrccTemplates] = useState([]);
+  const [irccTemplatesLoading, setIrccTemplatesLoading] = useState(false);
+  const [viewingIrccForm, setViewingIrccForm] = useState(null);
 
   const fetchClient = useCallback(async () => {
     try {
@@ -110,6 +114,18 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
   }, [id]);
 
   useEffect(() => { if (activeTab === 'pif' && !pifData) fetchPifData(); }, [activeTab]);
+
+  const fetchIrccTemplates = useCallback(async () => {
+    if (!client?.visa_type) return;
+    setIrccTemplatesLoading(true);
+    try {
+      const data = await api.getIRCCTemplatesByType(client.visa_type);
+      setIrccTemplates((data.forms || []).filter(f => f.uploaded));
+    } catch { setIrccTemplates([]); }
+    setIrccTemplatesLoading(false);
+  }, [client?.visa_type]);
+
+  useEffect(() => { if (activeTab === 'docs-forms' && client?.visa_type && irccTemplates.length === 0) fetchIrccTemplates(); }, [activeTab, client?.visa_type]);
 
   // Handlers
   const handleUploadDocs = async () => {
@@ -326,6 +342,36 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
       {activeTab === 'docs-forms' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <IRCCFormGenerator clientId={id} />
+
+          {/* IRCC Form Templates — View & Auto-Fill with PIF Data */}
+          {irccTemplates.length > 0 && (
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Stamp size={16} /> IRCC Form Templates (View & Auto-Fill)
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+                Open uploaded PDF templates pre-filled with {client.first_name}'s PIF data. Edit fields and download.
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+                {irccTemplates.map(form => (
+                  <div key={form.form_number} className="card" style={{ padding: 14, borderLeft: '3px solid #4f46e5' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#4f46e5', marginBottom: 4 }}>{form.form_number}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10, lineHeight: 1.3 }}>
+                      {form.name || form.form_number}
+                    </div>
+                    <button className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}
+                      onClick={() => setViewingIrccForm({ formNumber: form.form_number, formName: form.name || form.form_number })}>
+                      <Eye size={12} /> View & Fill
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {irccTemplatesLoading && (
+            <div style={{ textAlign: 'center', padding: 20 }}><div className="spinner" /></div>
+          )}
+
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
               <FileText size={16} /> Client Documents
@@ -543,6 +589,17 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* IRCC Form Viewer with Auto-Fill */}
+      {viewingIrccForm && (
+        <PDFFormViewer
+          formNumber={viewingIrccForm.formNumber}
+          formName={viewingIrccForm.formName}
+          clientId={id}
+          clientName={`${client.first_name} ${client.last_name}`}
+          onClose={() => setViewingIrccForm(null)}
+        />
       )}
 
       {/* Processing Overlay */}
