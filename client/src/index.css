@@ -1631,6 +1631,22 @@ td strong { color: var(--text-primary); }
 .pv-alert-banner.ocr strong { display: block; margin-bottom: 2px; color: #1d4ed8; }
 .pv-alert-banner.ocr span { color: #2563eb; font-size: 12px; }
 
+.pv-alert-banner.autofill {
+  background: #f0fdf4; border: 1px solid #86efac; color: #14532d;
+}
+.pv-alert-banner.autofill strong { display: block; margin-bottom: 2px; color: #059669; }
+.pv-alert-banner.autofill span { color: #047857; font-size: 12px; }
+.pv-alert-dismiss {
+  flex-shrink: 0; cursor: pointer; background: none; border: none;
+  color: inherit; opacity: 0.5; padding: 2px;
+}
+.pv-alert-dismiss:hover { opacity: 1; }
+
+.pv-toolbar-btn.autofill {
+  border-color: #86efac; color: #065f46; background: #f0fdf4;
+}
+.pv-toolbar-btn.autofill:hover { background: #dcfce7; }
+
 /* Spinner for loading */
 @keyframes pv-spin { to { transform: rotate(360deg); } }
 .spin { animation: pv-spin 1s linear infinite; }

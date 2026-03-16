@@ -95,8 +95,10 @@ router.post('/documents/:id/extract', async (req, res) => {
             return res.status(404).json({ error: 'Document not found' });
         }
 
-        if (!doc.file_path.toLowerCase().endsWith('.pdf')) {
-            return res.status(400).json({ error: 'Only PDF documents can be extracted' });
+        const ext = doc.original_name.toLowerCase();
+        const isSupported = ext.endsWith('.pdf') || ext.match(/\.(png|jpg|jpeg|gif|bmp|tiff|tif)$/);
+        if (!isSupported) {
+            return res.status(400).json({ error: 'Only PDF and image documents can be extracted' });
         }
 
         const extracted = await extractTextFromPDF(doc.file_path);
@@ -168,8 +170,10 @@ router.post('/clients/:clientId/documents/extract-all', async (req, res) => {
                 error: null
             };
 
-            if (!doc.original_name.toLowerCase().endsWith('.pdf')) {
-                docResult.error = 'Not a PDF file';
+            const extLower = doc.original_name.toLowerCase();
+            const isExtractable = extLower.endsWith('.pdf') || extLower.match(/\.(png|jpg|jpeg|gif|bmp|tiff|tif)$/);
+            if (!isExtractable) {
+                docResult.error = 'Unsupported file type for extraction';
                 results.push(docResult);
                 continue;
             }

@@ -18,6 +18,12 @@ server/uploads/filled/*
 # Build output
 client/dist/
 
+# Tesseract OCR data
+*.traineddata
+
+# Upload photos
+server/uploads/photos/
+
 # OS files
 .DS_Store
 Thumbs.db

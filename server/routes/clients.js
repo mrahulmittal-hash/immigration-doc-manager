@@ -29,9 +29,21 @@ router.get('/', async (req, res) => {
         const clients = await prepareAll(query, ...params);
 
         const enriched = await Promise.all(clients.map(async (c) => {
-            const docCount = await prepareGet('SELECT COUNT(*) as count FROM documents WHERE client_id = ?', c.id);
-            const formCount = await prepareGet('SELECT COUNT(*) as count FROM forms WHERE client_id = ?', c.id);
-            return { ...c, doc_count: parseInt(docCount?.count || 0), form_count: parseInt(formCount?.count || 0) };
+            const [docCount, formCount, checkTotal, checkDone, deadlineCount] = await Promise.all([
+                prepareGet('SELECT COUNT(*) as count FROM documents WHERE client_id = ?', c.id),
+                prepareGet('SELECT COUNT(*) as count FROM forms WHERE client_id = ?', c.id),
+                prepareGet('SELECT COUNT(*) as count FROM client_checklist_status WHERE client_id = ?', c.id),
+                prepareGet("SELECT COUNT(*) as count FROM client_checklist_status WHERE client_id = ? AND status = 'uploaded'", c.id),
+                prepareGet("SELECT COUNT(*) as count FROM client_deadlines WHERE client_id = ? AND status = 'pending'", c.id),
+            ]);
+            return {
+                ...c,
+                doc_count: parseInt(docCount?.count || 0),
+                form_count: parseInt(formCount?.count || 0),
+                checklist_total: parseInt(checkTotal?.count || 0),
+                checklist_completed: parseInt(checkDone?.count || 0),
+                deadline_count: parseInt(deadlineCount?.count || 0),
+            };
         }));
 
         res.json(enriched);
@@ -139,14 +151,32 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ error: 'Client not found' });
         }
 
-        const [documents, forms, clientData, filledForms] = await Promise.all([
+        const [documents, forms, clientData, filledForms, retainers, employerLinks, familyMembers, deadlines, checklistProgress] = await Promise.all([
             prepareAll('SELECT * FROM documents WHERE client_id = ? ORDER BY uploaded_at DESC', client.id),
             prepareAll('SELECT * FROM forms WHERE client_id = ? ORDER BY uploaded_at DESC', client.id),
             prepareAll('SELECT * FROM client_data WHERE client_id = ? ORDER BY field_key', client.id),
             prepareAll('SELECT * FROM filled_forms WHERE client_id = ? ORDER BY filled_at DESC', client.id),
+            prepareAll('SELECT * FROM retainers WHERE client_id = ? ORDER BY created_at DESC', client.id),
+            prepareAll(`SELECT ec.*, e.company_name, e.contact_name, e.contact_email, e.industry
+                        FROM employer_clients ec JOIN employers e ON e.id = ec.employer_id
+                        WHERE ec.client_id = ? ORDER BY ec.created_at DESC`, client.id),
+            prepareAll('SELECT * FROM family_members WHERE client_id = ? ORDER BY created_at DESC', client.id),
+            prepareAll("SELECT * FROM client_deadlines WHERE client_id = ? AND status = 'pending' ORDER BY deadline_date ASC", client.id),
+            prepareGet(`SELECT COUNT(*) as total,
+                        COUNT(CASE WHEN status = 'uploaded' THEN 1 END) as completed,
+                        COUNT(CASE WHEN status = 'missing' THEN 1 END) as missing
+                        FROM client_checklist_status WHERE client_id = ?`, client.id),
         ]);
 
-        res.json({ ...client, documents, forms, client_data: clientData, filled_forms: filledForms });
+        res.json({
+            ...client, documents, forms, client_data: clientData, filled_forms: filledForms,
+            retainers, employer_links: employerLinks, family_members: familyMembers, deadlines,
+            checklist_progress: {
+                total: parseInt(checklistProgress?.total || 0),
+                completed: parseInt(checklistProgress?.completed || 0),
+                missing: parseInt(checklistProgress?.missing || 0),
+            },
+        });
     } catch (err) {
         console.error('Error fetching client:', err);
         res.status(500).json({ error: 'Failed to fetch client' });

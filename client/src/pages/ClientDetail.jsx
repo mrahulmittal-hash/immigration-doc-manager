@@ -116,6 +116,13 @@ export default function ClientDetail() {
   }, [id]);
 
   useEffect(() => { if (activeTab === 'pif' && !pifData) fetchPifData(); }, [activeTab]);
+  useEffect(() => {
+    if (activeTab === 'documents') {
+      api.getClientEmails(id).then(emails => {
+        setEmailsWithAttachments(emails.filter(e => e.has_attachments));
+      }).catch(() => {});
+    }
+  }, [activeTab, id]);
 
   /* ── Handlers ──────────────────────────────────────────── */
   const wrap = (fn, msg) => async (...args) => {
@@ -754,6 +761,17 @@ export default function ClientDetail() {
           onClose={() => setOcrData(null)}
         />
       )}
+
+      {/* ── Retainers Tab ────────────────────────────────── */}
+      {activeTab === 'retainers' && <RetainerPanel clientId={id} />}
+
+      {/* ── Employer Tab ────────────────────────────────── */}
+      {activeTab === 'employer' && <EmployerLink clientId={id} />}
+
+      {activeTab === 'dependents' && <DependentsPanel clientId={id} clientName={client ? `${client.first_name} ${client.last_name}` : ''} />}
+
+      {/* ── Family Tab ──────────────────────────────────── */}
+      {activeTab === 'family' && <FamilyMembers clientId={id} />}
 
       {/* ── Field Mapper Modal ───────────────────────────────── */}
       {showFieldMapper && formFieldsData && (

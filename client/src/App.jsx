@@ -18,6 +18,9 @@ import ClientPortal from './pages/ClientPortal';
 import UsersPage from './pages/UsersPage';
 import ImmigrationUpdates from './pages/ImmigrationUpdates';
 import EmailSettings from './pages/EmailSettings';
+import Employers from './pages/Employers';
+import EmployerDetail from './pages/EmployerDetail';
+import LMIADashboard from './pages/LMIADashboard';
 import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
 import NotificationPanel from './components/NotificationPanel';
@@ -171,6 +174,9 @@ export default function App() {
                   <Route path="/users" element={<UsersPage />} />
                   <Route path="/ircc-updates" element={<ImmigrationUpdates />} />
                   <Route path="/settings/email" element={<EmailSettings />} />
+                  <Route path="/employers" element={<Employers />} />
+                  <Route path="/employers/:id" element={<EmployerDetail />} />
+                  <Route path="/lmia" element={<LMIADashboard />} />
                   <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
               </AdminShell>
