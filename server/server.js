@@ -35,6 +35,7 @@ const accountingRouter = require('./routes/accounting');
 const tasksRouter = require('./routes/tasks');
 const irccTemplatesRouter = require('./routes/ircc-templates');
 const auditRouter = require('./routes/audit');
+const adminRouter = require('./routes/admin');
 
 // Mount routes
 // Staff-facing routes protected by requireAuth (JWT or dev pass-through)
@@ -56,6 +57,8 @@ app.use('/api', requireAuth, accountingRouter);
 app.use('/api', requireAuth, tasksRouter);
 app.use('/api/ircc-templates', requireAuth, irccTemplatesRouter);
 app.use('/api', requireAuth, auditRouter);
+app.use('/api/admin', requireAuth, requireRole('Admin'), adminRouter);
+app.use('/api', requireAuth, adminRouter);  // non-admin routes in admin.js (fee-adjustments, retainer-agreements, service-fees/active)
 // PUBLIC routes (magic-link flow — no login required for clients)
 app.use('/api/pif', pifRouter);
 app.use('/api/sign', signRouter);

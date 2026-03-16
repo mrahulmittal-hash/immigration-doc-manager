@@ -238,4 +238,48 @@ async function sendSignatureRequestEmail(clientEmail, clientName, signToken, doc
     return await sendViaGmail(clientEmail, subject, htmlBody, signUrl, clientName);
 }
 
-module.exports = { sendPIFEmail, sendPortalEmail, sendSignatureRequestEmail };
+// -----------------------------------------------------------------------
+// Retainer Agreement Email
+// -----------------------------------------------------------------------
+async function sendRetainerAgreementEmail(clientEmail, clientName, agreementHtml, serviceName) {
+    const subject = `Your Retainer Agreement — PropAgent`;
+    const htmlBody = `<!DOCTYPE html>
+    <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0; padding:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5;">
+      <div style="max-width: 700px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 16px 16px 0 0; padding: 40px 30px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">PropAgent</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 14px;">RCIC Immigration Services</p>
+        </div>
+        <div style="background: #ffffff; padding: 40px 30px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+          <h2 style="color: #1a1a2e; font-size: 22px; margin: 0 0 16px;">Hello ${clientName},</h2>
+          <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+            Please find your <strong>Retainer Agreement</strong> for <strong style="color: #0f3460;">${serviceName || 'Immigration Services'}</strong> attached below.
+          </p>
+          <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">
+            Please review the agreement carefully. If you have any questions, don't hesitate to reach out to us.
+          </p>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin: 24px 0; font-size: 13px; line-height: 1.7; color: #1a1a1a;">
+            ${agreementHtml}
+          </div>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6;">
+            Please print, sign, and return this agreement to proceed with your application.
+          </p>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0 0 16px 16px; padding: 24px 30px; text-align: center;">
+          <p style="color: #64748b; font-size: 13px; margin: 0 0 4px; font-weight: 600;">PropAgent</p>
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">RCIC Immigration Platform</p>
+          <p style="color: #94a3b8; font-size: 11px; margin: 12px 0 0;">
+            This email contains your retainer agreement. Please do not share it with unauthorized parties.
+          </p>
+        </div>
+      </div>
+    </body></html>`;
+
+    if (isSESEnabled()) {
+        return await sendViaSES(clientEmail, subject, htmlBody, '');
+    }
+    return await sendViaGmail(clientEmail, subject, htmlBody, '', clientName);
+}
+
+module.exports = { sendPIFEmail, sendPortalEmail, sendSignatureRequestEmail, sendRetainerAgreementEmail };

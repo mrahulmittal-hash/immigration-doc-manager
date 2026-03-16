@@ -1,12 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle2, Circle, ChevronDown, ChevronUp, User, ClipboardList, FileText, Send, Stamp, Shield, Save } from 'lucide-react';
-
-const VISA_TYPES = [
-  'Express Entry','Study Permit','Work Permit (PGWP)','Work Permit (LMIA)','Open Work Permit',
-  'Spousal Sponsorship','Parent/Grandparent Sponsorship','PR Application','PR Card Renewal',
-  'Provincial Nominee (PNP)','Atlantic Immigration (AIP)','IEC (Working Holiday)',
-  'Visitor Visa (TRV)','Super Visa','Citizenship Application','LMIA Application','eTA','Refugee Claim',
-];
+import { api } from '../api';
 
 const WORKFLOW_STAGES = [
   {
@@ -42,7 +36,7 @@ const WORKFLOW_STAGES = [
       { key: 'notes', label: 'Case notes added', check: c => !!c.notes },
     ],
     fields: [
-      { key: 'visa_type', label: 'Visa Type', type: 'select', options: VISA_TYPES },
+      { key: 'visa_type', label: 'Visa Type', type: 'select', options: '__serviceTypes__' },
       { key: 'passport_number', label: 'Passport Number', type: 'text' },
       { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
       { key: 'notes', label: 'Case Notes', type: 'textarea' },
@@ -121,6 +115,11 @@ export default function WorkflowStages({ client, editMode = false, onSave }) {
   const [expandedStage, setExpandedStage] = useState(null);
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
+  const [serviceTypes, setServiceTypes] = useState([]);
+
+  useEffect(() => {
+    api.getActiveServiceFees().then(fees => setServiceTypes(fees.map(f => f.service_name))).catch(() => {});
+  }, []);
 
   const totalItems = WORKFLOW_STAGES.reduce((sum, s) => sum + s.items.length, 0);
   const completedItems = WORKFLOW_STAGES.reduce((sum, s) => sum + s.items.filter(i => i.check(client)).length, 0);
@@ -306,7 +305,7 @@ export default function WorkflowStages({ client, editMode = false, onSave }) {
                               style={{ fontSize: 13, flex: 1 }}
                             >
                               <option value="">— Select —</option>
-                              {field.options.map(opt => (
+                              {(field.options === '__serviceTypes__' ? serviceTypes : field.options).map(opt => (
                                 <option key={opt} value={opt}>{opt.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>
                               ))}
                             </select>

@@ -48,7 +48,12 @@ const CATEGORIES = [
   { key: 'draw_results',      label: 'Draws' },
   { key: 'processing_times',  label: 'Processing' },
   { key: 'policy_change',     label: 'Policy' },
-  { key: 'general',           label: 'General' },
+  { key: 'permanent_resident', label: 'PR' },
+  { key: 'temporary_resident', label: 'TR' },
+  { key: 'citizenship',        label: 'Citizenship' },
+  { key: 'refugee',            label: 'Refugee' },
+  { key: 'medical',            label: 'Medical' },
+  { key: 'general',            label: 'General' },
 ];
 
 function categoryLabel(key) {
@@ -65,7 +70,12 @@ const CAT_COLORS = {
   draw_results:      { bg: '#ecfeff', text: '#155e75', border: '#a5f3fc' },
   processing_times:  { bg: '#fefce8', text: '#854d0e', border: '#fef08a' },
   policy_change:     { bg: '#fff1f2', text: '#9f1239', border: '#fecdd3' },
-  general:           { bg: '#f9fafb', text: '#4b5563', border: '#e5e7eb' },
+  permanent_resident: { bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
+  temporary_resident: { bg: '#fff7ed', text: '#9a3412', border: '#fed7aa' },
+  citizenship:        { bg: '#faf5ff', text: '#6b21a8', border: '#e9d5ff' },
+  medical:            { bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
+  manual:             { bg: '#f5f5f4', text: '#44403c', border: '#d6d3d1' },
+  general:            { bg: '#f9fafb', text: '#4b5563', border: '#e5e7eb' },
 };
 
 export default function ImmigrationUpdates() {
@@ -90,7 +100,7 @@ export default function ImmigrationUpdates() {
   const handleScrape = async () => {
     setScraping(true);
     try {
-      await api.triggerIRCCScrape();
+      await api.triggerIRCCScrapeAll();
       await fetchUpdates();
     } catch (err) { console.error('Scrape failed:', err); }
     finally { setScraping(false); }

@@ -79,7 +79,7 @@ router.get('/dashboard/today', async (req, res) => {
 
     const deadlines = await prepareAll(
       `SELECT d.*, c.first_name, c.last_name
-       FROM deadlines d LEFT JOIN clients c ON c.id = d.client_id
+       FROM client_deadlines d LEFT JOIN clients c ON c.id = d.client_id
        WHERE d.deadline_date <= CURRENT_DATE + 7
        ORDER BY d.deadline_date ASC`
     ).catch(() => []);

@@ -154,6 +154,8 @@ export const api = {
     // IRCC Updates
     getIRCCUpdates: (category, limit) => request(`/ircc-updates?${category ? `category=${category}&` : ''}limit=${limit || 50}`),
     triggerIRCCScrape: () => request('/ircc-updates/scrape', { method: 'POST' }),
+    triggerIRCCBulletinScrape: () => request('/ircc-updates/scrape-bulletins', { method: 'POST' }),
+    triggerIRCCScrapeAll: () => request('/ircc-updates/scrape-all', { method: 'POST' }),
 
     // PIF
     sendPIFEmail: (clientId) => request(`/clients/${clientId}/send-pif`, { method: 'POST' }),
@@ -171,6 +173,14 @@ export const api = {
     createSignatureRequest: (clientId, data) => request(`/clients/${clientId}/signatures`, { method: 'POST', body: JSON.stringify(data) }),
     sendSignatureRequest: (clientId, sigId) => request(`/clients/${clientId}/signatures/${sigId}/send`, { method: 'POST' }),
     deleteSignatureRequest: (sigId) => request(`/signatures/${sigId}`, { method: 'DELETE' }),
+
+    // Retainers
+    getClientRetainers: (clientId) => request(`/clients/${clientId}/retainers`),
+    createRetainer: (clientId, data) => request(`/clients/${clientId}/retainers`, { method: 'POST', body: JSON.stringify(data) }),
+    updateRetainer: (id, data) => request(`/retainers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteRetainer: (id) => request(`/retainers/${id}`, { method: 'DELETE' }),
+    getRetainerPayments: (retainerId) => request(`/retainers/${retainerId}/payments`),
+    recordPayment: (retainerId, data) => request(`/retainers/${retainerId}/payments`, { method: 'POST', body: JSON.stringify(data) }),
 
     // Trust Accounting
     getAccountingSummary: () => request('/accounting/summary'),
@@ -245,6 +255,34 @@ export const api = {
         method: 'PUT', body: JSON.stringify({ fields })
     }),
     getPIFVerificationSummary: (clientId) => request(`/pif/data/${clientId}/verification-summary`),
+
+    // Admin — Service Fees
+    getServiceFees: () => request('/admin/service-fees'),
+    getActiveServiceFees: () => request('/service-fees/active'),
+    createServiceFee: (data) => request('/admin/service-fees', { method: 'POST', body: JSON.stringify(data) }),
+    updateServiceFee: (id, data) => request(`/admin/service-fees/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteServiceFee: (id) => request(`/admin/service-fees/${id}`, { method: 'DELETE' }),
+
+    // Admin — Retainer Template
+    getRetainerTemplate: () => request('/admin/retainer-template'),
+    updateRetainerTemplateSection: (sectionNumber, data) => request(`/admin/retainer-template/${sectionNumber}`, { method: 'PUT', body: JSON.stringify(data) }),
+    previewRetainerTemplate: () => request('/admin/retainer-template/preview', { method: 'POST' }),
+
+    // Admin — Firm Profile
+    getFirmProfile: () => request('/admin/firm-profile'),
+    updateFirmProfile: (data) => request('/admin/firm-profile', { method: 'PUT', body: JSON.stringify(data) }),
+
+    // Fee Adjustments
+    getFeeAdjustments: (clientId) => request(`/clients/${clientId}/fee-adjustments`),
+    createFeeAdjustment: (clientId, data) => request(`/clients/${clientId}/fee-adjustments`, { method: 'POST', body: JSON.stringify(data) }),
+    deleteFeeAdjustment: (id) => request(`/fee-adjustments/${id}`, { method: 'DELETE' }),
+    getRetainerAdjustedTotal: (retainerId) => request(`/retainers/${retainerId}/adjusted-total`),
+
+    // Retainer Agreements
+    generateRetainerAgreement: (clientId, data) => request(`/clients/${clientId}/retainer-agreement/generate`, { method: 'POST', body: JSON.stringify(data) }),
+    getClientRetainerAgreements: (clientId) => request(`/clients/${clientId}/retainer-agreements`),
+    getRetainerAgreement: (id) => request(`/retainer-agreements/${id}`),
+    sendRetainerAgreementEmail: (id) => request(`/retainer-agreements/${id}/send-email`, { method: 'POST' }),
 
     // Audit
     getAuditLog: (clientId, params = {}) => {

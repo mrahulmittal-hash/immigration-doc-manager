@@ -20,6 +20,7 @@ import UsersPage from './pages/UsersPage';
 import ImmigrationUpdates from './pages/ImmigrationUpdates';
 import IRCCTemplates from './pages/IRCCTemplates';
 import EmailSettings from './pages/EmailSettings';
+import AdminSettings from './pages/AdminSettings';
 import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
 import NotificationPanel from './components/NotificationPanel';
@@ -39,6 +40,7 @@ const MORE_ITEMS = [
   { to: '/ircc-updates', icon: Newspaper,   label: 'IRCC Updates' },
   { to: '/users',        icon: UserCog,     label: 'Users' },
   { to: '/settings/email', icon: Mail,      label: 'Email Settings' },
+  { to: '/admin',          icon: Briefcase, label: 'Admin Settings' },
 ];
 
 function TopNav() {
@@ -191,6 +193,9 @@ function AppRoutes() {
                 } />
                 <Route path="/settings/email" element={
                   <ProtectedRoute path="/settings/email"><EmailSettings /></ProtectedRoute>
+                } />
+                <Route path="/admin" element={
+                  <ProtectedRoute roles={['Admin']}><AdminSettings /></ProtectedRoute>
                 } />
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>

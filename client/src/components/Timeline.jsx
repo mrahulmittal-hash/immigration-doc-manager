@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
-import { FileText, PenTool, CheckCircle, ClipboardList, Upload, MessageSquare, Calendar, Filter, User } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { FileText, PenTool, CheckCircle, ClipboardList, Upload, MessageSquare, Calendar, Filter, User, Send } from 'lucide-react';
 
 const EVENT_ICONS = {
   document_upload: { Icon: Upload, color: '#3b82f6', bg: 'rgba(59,130,246,.1)' },
@@ -25,13 +26,32 @@ export default function Timeline({ clientId }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [newNote, setNewNote] = useState('');
+  const [adding, setAdding] = useState(false);
+  const { user } = useAuth();
 
-  useEffect(() => {
+  const fetchTimeline = useCallback(() => {
     api.getTimeline(clientId)
       .then(setEvents)
       .catch(() => setEvents([]))
       .finally(() => setLoading(false));
   }, [clientId]);
+
+  useEffect(() => { fetchTimeline(); }, [fetchTimeline]);
+
+  const handleAddNote = async () => {
+    if (!newNote.trim() || adding) return;
+    setAdding(true);
+    try {
+      await api.addNote(clientId, newNote.trim(), user?.name || 'Admin');
+      setNewNote('');
+      fetchTimeline();
+    } catch (err) {
+      console.error('Failed to add note:', err);
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const filtered = filter === 'all' ? events : events.filter(e => e.event_type === filter);
 
@@ -39,6 +59,36 @@ export default function Timeline({ clientId }) {
 
   return (
     <div>
+      {/* Inline note composer */}
+      <div style={{
+        background: 'var(--bg-surface)', border: '1px solid var(--border-light)',
+        borderRadius: 10, padding: '12px 16px', marginBottom: 16,
+      }}>
+        <textarea
+          value={newNote}
+          onChange={e => setNewNote(e.target.value)}
+          onKeyDown={e => { if (e.ctrlKey && e.key === 'Enter') handleAddNote(); }}
+          placeholder="Add a note..."
+          rows={2}
+          style={{
+            width: '100%', resize: 'vertical', background: 'var(--bg-primary)',
+            border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px',
+            fontSize: 13, color: 'var(--text-primary)', fontFamily: 'inherit',
+          }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ctrl+Enter to submit</span>
+          <button
+            onClick={handleAddNote}
+            disabled={!newNote.trim() || adding}
+            className="btn btn-primary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Send size={13} /> {adding ? 'Adding...' : 'Add Note'}
+          </button>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <Filter size={14} style={{ color: 'var(--text-muted)' }} />
         {EVENT_FILTERS.map(f => (

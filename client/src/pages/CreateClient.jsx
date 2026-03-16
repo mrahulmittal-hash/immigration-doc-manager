@@ -1,27 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import { AlertTriangle, Check } from 'lucide-react';
-
-const VISA_TYPES = [
-  'Express Entry', 'Study Permit', 'Work Permit (PGWP)', 'Work Permit (LMIA)',
-  'Open Work Permit', 'Spousal Sponsorship', 'Parent/Grandparent Sponsorship',
-  'Visitor Visa (TRV)', 'Super Visa', 'PR Application', 'PR Card Renewal',
-  'Provincial Nominee (PNP)', 'Atlantic Immigration (AIP)', 'IEC (Working Holiday)',
-  'Citizenship Application', 'LMIA Application', 'eTA', 'Refugee Claim', 'Other'
-];
+import { AlertTriangle, Check, DollarSign } from 'lucide-react';
 
 export default function CreateClient() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [err, setErr]       = useState('');
+  const [serviceFees, setServiceFees] = useState([]);
+  const [selectedFee, setSelectedFee] = useState(null);
   const [form, setForm] = useState({
     first_name:'', last_name:'', email:'', phone:'',
     nationality:'', date_of_birth:'', passport_number:'',
     visa_type:'', notes:''
   });
 
+  useEffect(() => {
+    api.getActiveServiceFees().then(setServiceFees).catch(() => {});
+  }, []);
+
   function set(k, v) { setForm(f => ({...f, [k]: v})); }
+
+  function handleServiceChange(e) {
+    const serviceName = e.target.value;
+    set('visa_type', serviceName);
+    const fee = serviceFees.find(f => f.service_name === serviceName);
+    setSelectedFee(fee || null);
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -29,6 +34,15 @@ export default function CreateClient() {
     setSaving(true); setErr('');
     try {
       const client = await api.createClient(form);
+      // Auto-create retainer if a service with a fee was selected
+      if (selectedFee && Number(selectedFee.base_fee) > 0) {
+        try {
+          await api.createRetainer(client.id, {
+            service_type: selectedFee.service_name,
+            retainer_fee: Number(selectedFee.base_fee),
+          });
+        } catch (retErr) { console.error('Failed to auto-create retainer:', retErr); }
+      }
       navigate(`/clients/${client.id}`);
     } catch (e) {
       setErr(e.message || 'Failed to create client');
@@ -118,16 +132,51 @@ export default function CreateClient() {
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Visa / Service Type</label>
+              <label className="form-label">Service Type</label>
               <select
                 className="form-select"
                 value={form.visa_type}
-                onChange={e => set('visa_type', e.target.value)}
+                onChange={handleServiceChange}
               >
                 <option value="">Select a service...</option>
-                {VISA_TYPES.map(v => <option key={v} value={v}>{v}</option>)}
+                {serviceFees.map(sf => (
+                  <option key={sf.id} value={sf.service_name}>
+                    {sf.service_name}
+                  </option>
+                ))}
               </select>
             </div>
+            {/* Fee auto-populated from admin-set service fees */}
+            {selectedFee && (
+              <div className="form-group form-full">
+                <div style={{
+                  padding: '12px 16px', borderRadius: 10,
+                  background: 'rgba(99, 102, 241, 0.06)', border: '1px solid rgba(99, 102, 241, 0.15)',
+                  display: 'flex', alignItems: 'center', gap: 12
+                }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 8,
+                    background: 'rgba(99, 102, 241, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <DollarSign size={18} style={{ color: '#6366f1' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Professional Fee
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>
+                      ${Number(selectedFee.base_fee).toLocaleString('en-CA', { minimumFractionDigits: 2 })}
+                      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginLeft: 8 }}>
+                        + GST ({Number(selectedFee.gst_rate)}%) = ${(Number(selectedFee.base_fee) * (1 + Number(selectedFee.gst_rate) / 100)).toLocaleString('en-CA', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    {selectedFee.description && (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{selectedFee.description}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="form-group form-full">
               <label className="form-label">Case Notes</label>
               <textarea

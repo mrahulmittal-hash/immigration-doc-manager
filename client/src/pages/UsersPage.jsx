@@ -35,7 +35,7 @@ const AVATAR_GRADIENTS = [
   'linear-gradient(135deg,#14b8a6,#3b82f6)',
 ];
 
-export default function UsersPage() {
+export default function UsersPage({ embedded = false }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -97,7 +97,7 @@ export default function UsersPage() {
   });
 
   return (
-    <div className="clients-3panel">
+    <div className="clients-3panel" style={embedded ? { margin: 0, height: 'calc(100vh - 160px)' } : undefined}>
       {/* ═══ LEFT SIDEBAR ═══ */}
       <div className="clients-sidebar">
         <button className="clients-add-btn" onClick={() => { setShowInvite(true); setSelectedId(null); }}>

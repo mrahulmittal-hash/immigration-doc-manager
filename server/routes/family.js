@@ -6,7 +6,7 @@ const { prepareAll, prepareGet, prepareRun } = require('../database');
 router.get('/clients/:id/family', async (req, res) => {
   try {
     const members = await prepareAll(
-      'SELECT * FROM family_members WHERE client_id = ? ORDER BY created_at DESC',
+      'SELECT * FROM dependents WHERE client_id = ? ORDER BY created_at DESC',
       parseInt(req.params.id)
     );
     res.json(members);
@@ -27,14 +27,14 @@ router.post('/clients/:id/family', async (req, res) => {
     }
 
     const result = await prepareRun(
-      `INSERT INTO family_members (client_id, relationship, first_name, last_name, date_of_birth, nationality, passport_number, immigration_status, notes)
+      `INSERT INTO dependents (client_id, relationship, first_name, last_name, date_of_birth, nationality, passport_number, immigration_status, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       clientId, relationship, first_name, last_name,
       date_of_birth || null, nationality || null, passport_number || null,
       immigration_status || null, notes || null
     );
 
-    const member = await prepareGet('SELECT * FROM family_members WHERE id = ?', result.lastInsertRowid);
+    const member = await prepareGet('SELECT * FROM dependents WHERE id = ?', result.lastInsertRowid);
     res.status(201).json(member);
   } catch (err) {
     console.error('Error adding family member:', err);
@@ -46,12 +46,12 @@ router.post('/clients/:id/family', async (req, res) => {
 router.put('/family/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const existing = await prepareGet('SELECT * FROM family_members WHERE id = ?', id);
+    const existing = await prepareGet('SELECT * FROM dependents WHERE id = ?', id);
     if (!existing) return res.status(404).json({ error: 'Family member not found' });
 
     const { relationship, first_name, last_name, date_of_birth, nationality, passport_number, immigration_status, notes } = req.body;
     await prepareRun(
-      `UPDATE family_members SET relationship = ?, first_name = ?, last_name = ?, date_of_birth = ?, nationality = ?, passport_number = ?, immigration_status = ?, notes = ?
+      `UPDATE dependents SET relationship = ?, first_name = ?, last_name = ?, date_of_birth = ?, nationality = ?, passport_number = ?, immigration_status = ?, notes = ?
        WHERE id = ?`,
       relationship || existing.relationship,
       first_name || existing.first_name,
@@ -64,7 +64,7 @@ router.put('/family/:id', async (req, res) => {
       id
     );
 
-    const updated = await prepareGet('SELECT * FROM family_members WHERE id = ?', id);
+    const updated = await prepareGet('SELECT * FROM dependents WHERE id = ?', id);
     res.json(updated);
   } catch (err) {
     console.error('Error updating family member:', err);
@@ -76,7 +76,7 @@ router.put('/family/:id', async (req, res) => {
 router.delete('/family/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    await prepareRun('DELETE FROM family_members WHERE id = ?', id);
+    await prepareRun('DELETE FROM dependents WHERE id = ?', id);
     res.json({ message: 'Family member deleted' });
   } catch (err) {
     console.error('Error deleting family member:', err);

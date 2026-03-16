@@ -161,7 +161,7 @@ router.get('/:id', async (req, res) => {
             prepareAll(`SELECT ec.*, e.company_name, e.contact_name, e.contact_email, e.industry
                         FROM employer_clients ec JOIN employers e ON e.id = ec.employer_id
                         WHERE ec.client_id = ? ORDER BY ec.created_at DESC`, client.id),
-            prepareAll('SELECT * FROM family_members WHERE client_id = ? ORDER BY created_at DESC', client.id),
+            prepareAll('SELECT * FROM dependents WHERE client_id = ? ORDER BY created_at DESC', client.id),
             prepareAll("SELECT * FROM client_deadlines WHERE client_id = ? AND status = 'pending' ORDER BY deadline_date ASC", client.id),
             prepareGet(`SELECT COUNT(*) as total,
                         COUNT(CASE WHEN status = 'uploaded' THEN 1 END) as completed,

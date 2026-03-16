@@ -638,6 +638,136 @@ async function initDatabase() {
     `);
 
 
+    // ── Service Fees ─────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_fees (
+        id           SERIAL PRIMARY KEY,
+        service_name TEXT NOT NULL UNIQUE,
+        base_fee     NUMERIC(10,2) NOT NULL DEFAULT 0,
+        gst_rate     NUMERIC(5,2) NOT NULL DEFAULT 5.00,
+        description  TEXT,
+        is_active    BOOLEAN DEFAULT TRUE,
+        created_at   TIMESTAMPTZ DEFAULT NOW(),
+        updated_at   TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    const sfExists = await client.query("SELECT COUNT(*) as cnt FROM service_fees");
+    if (parseInt(sfExists.rows[0].cnt) === 0) {
+      await client.query(`
+        INSERT INTO service_fees (service_name, base_fee, gst_rate, description) VALUES
+        ('Permanent Residence - Express Entry', 3500.00, 5.00, 'Federal Skilled Worker, CEC, or Federal Skilled Trades'),
+        ('Permanent Residence - PNP', 2500.00, 5.00, 'Provincial Nominee Program application'),
+        ('Study Permit', 1500.00, 5.00, 'Study permit for international students'),
+        ('Work Permit (PGWP)', 1200.00, 5.00, 'Post-Graduation Work Permit'),
+        ('Work Permit (LMIA-based)', 2000.00, 5.00, 'LMIA-based closed work permit'),
+        ('Open Work Permit', 1500.00, 5.00, 'Open work permit (Bridging, Spousal, etc.)'),
+        ('LMIA Application', 2500.00, 5.00, 'Labour Market Impact Assessment for employers'),
+        ('Spousal Sponsorship', 3000.00, 5.00, 'Family class spousal or partner sponsorship'),
+        ('Parent & Grandparent Sponsorship', 3500.00, 5.00, 'Family class parent/grandparent sponsorship'),
+        ('Visitor Visa (TRV)', 1000.00, 5.00, 'Temporary Resident Visa for visitors'),
+        ('Super Visa', 1200.00, 5.00, 'Super Visa for parents and grandparents'),
+        ('Citizenship Application', 1000.00, 5.00, 'Canadian citizenship application'),
+        ('PR Card Renewal', 800.00, 5.00, 'Permanent Resident card renewal'),
+        ('Status Extension or Restoration', 800.00, 5.00, 'Extend or restore existing visa or permit'),
+        ('Atlantic Immigration Program (AIP)', 3000.00, 5.00, 'Atlantic Immigration Program application'),
+        ('IEC (Working Holiday)', 1000.00, 5.00, 'International Experience Canada — Working Holiday, Young Professional, Co-op'),
+        ('eTA', 300.00, 5.00, 'Electronic Travel Authorization'),
+        ('Humanitarian & Compassionate', 4000.00, 5.00, 'H&C grounds application'),
+        ('Refugee Claim', 5000.00, 5.00, 'Refugee protection claim'),
+        ('Other', 0.00, 5.00, 'Custom service — set fee manually')
+      `);
+      console.log('✅ Seeded service fees');
+    }
+
+    // ── Firm Profile ─────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS firm_profile (
+        id             SERIAL PRIMARY KEY,
+        rcic_name      TEXT DEFAULT '',
+        rcic_license   TEXT DEFAULT '',
+        business_name  TEXT DEFAULT '',
+        address        TEXT DEFAULT '',
+        city           TEXT DEFAULT '',
+        province       TEXT DEFAULT '',
+        postal_code    TEXT DEFAULT '',
+        phone          TEXT DEFAULT '',
+        email          TEXT DEFAULT '',
+        logo_path      TEXT,
+        updated_at     TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      INSERT INTO firm_profile (id) VALUES (1) ON CONFLICT DO NOTHING
+    `);
+
+    // ── Retainer Template Sections ───────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS retainer_template_sections (
+        id             SERIAL PRIMARY KEY,
+        section_number INTEGER NOT NULL UNIQUE,
+        title          TEXT NOT NULL,
+        content        TEXT NOT NULL,
+        is_editable    BOOLEAN DEFAULT TRUE,
+        updated_at     TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    const rtsExists = await client.query("SELECT COUNT(*) as cnt FROM retainer_template_sections");
+    if (parseInt(rtsExists.rows[0].cnt) === 0) {
+      const templateSections = [
+        [1, 'Purpose and Interpretation', 'This is a formal retainer agreement that defines the contractual relationship between the RCIC and the Client. It outlines the immigration consulting services to be provided, the responsibilities of each party, the professional fees to be charged, and the client\'s rights, in compliance with the CICC\'s Code of Professional Conduct and applicable Canadian law.'],
+        [2, 'Authorized Scope of Services', 'The RCIC agrees to provide immigration consulting and representation services related to:\n\n{{service_type}}'],
+        [3, 'Responsibilities of the RCIC', 'The RCIC shall:\n- Provide honest, competent, and professional immigration advice and representation\n- Assess the Client\'s eligibility for the immigration service sought\n- Explain the process, documents required, deadlines, and anticipated timelines\n- Prepare, review, and submit relevant immigration forms and supporting documents to IRCC or other authorities\n- Communicate with IRCC and relevant agencies on the Client\'s behalf (if authorized)\n- Maintain confidentiality and act in the best interest of the Client\n- Keep the Client reasonably informed of progress\n- Provide a final copy of submitted application and IRCC correspondence'],
+        [4, 'Responsibilities of the Client', 'The Client agrees to:\n- Provide full, accurate, and truthful information and documentation in a timely manner\n- Disclose any previous visa refusals, criminal history, misrepresentations, or immigration violations\n- Respond promptly to RCIC\'s communications\n- Pay all fees and costs as outlined in this Agreement\n- Understand that the RCIC cannot guarantee the outcome of the application\n- Inform the RCIC of any change in circumstances or contact details during the process'],
+        [5, 'Fees and Payment Structure', 'Professional Fee: CAD ${{professional_fee}}\nGST ({{gst_rate}}%): CAD ${{gst_amount}}\nTotal: CAD ${{total_fee}}\n\n{{fee_adjustments}}\n\nDoes not include disbursements, government processing fees, courier charges, translation fees, or other third-party costs.\n\nAll funds deposited into a Client Account in accordance with Section 43 of the Code of Professional Conduct. Funds withdrawn only upon reaching milestones or delivering specific work as agreed.'],
+        [6, 'Refund Policy', 'Refunds provided for unearned portion of fees upon termination before completion of services. Disbursements or third-party fees already paid are non-refundable. No refund if services fully rendered or if application refused by IRCC, unless refusal resulted from RCIC negligence or misconduct.'],
+        [7, 'Client File and Record Retention', 'The RCIC retains Client records for 6 years from date of file closure, in compliance with CICC regulations. After 6 years, the RCIC may securely destroy records. The Client may request a copy of the file at any time within the retention period.'],
+        [8, 'Confidentiality and Privacy', 'The RCIC maintains confidentiality of all Client information unless authorized by the Client or required by law. All records and personal data handled in accordance with PIPEDA and the CICC Code of Professional Conduct.'],
+        [9, 'Use of Third Parties and Authorized Agents', 'The RCIC may engage another RCIC or qualified individual to assist, provided such person is disclosed to the Client and only with the Client\'s prior written consent.'],
+        [10, 'Termination of Agreement', 'This agreement may be terminated:\n- By the Client at any time in writing\n- By the RCIC with written notice if the Client fails to cooperate, provides false documents, fails to pay, or breaches this agreement\n- Automatically upon completion of services\n\nUpon termination, the RCIC provides a final invoice and refunds unearned fees. The Client remains responsible for services rendered and disbursements to date of termination.'],
+        [11, 'Dispute Resolution', 'The parties agree to attempt amicable resolution through discussion. If unresolved, the Client may file a complaint with the College of Immigration and Citizenship Consultants (CICC).'],
+        [12, 'Acknowledgments by the Client', 'By signing, the Client acknowledges that they have:\n- Read, understood, and agreed to all terms in this Agreement\n- Received and reviewed the Client Service Agreement Disclosure Form (Schedule A)\n- Understood that the RCIC is licensed by CICC and must comply with all regulations and Code of Professional Conduct\n- Understood that no outcome is guaranteed and all decisions rest with IRCC or other authorities'],
+        [13, 'Governing Law', 'This Agreement shall be governed by the laws of the Province of {{province}} and the federal laws of Canada applicable therein.'],
+        [14, 'Entire Agreement', 'This Agreement constitutes the entire understanding between the parties and supersedes all prior agreements, oral or written. Any amendments must be in writing and signed by both parties.'],
+      ];
+      for (const [num, title, content] of templateSections) {
+        await client.query(
+          'INSERT INTO retainer_template_sections (section_number, title, content) VALUES ($1, $2, $3)',
+          [num, title, content]
+        );
+      }
+      console.log('✅ Seeded retainer template sections');
+    }
+
+    // ── Fee Adjustments ──────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS fee_adjustments (
+        id           SERIAL PRIMARY KEY,
+        retainer_id  INTEGER REFERENCES retainers(id) ON DELETE CASCADE,
+        client_id    INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        type         TEXT NOT NULL,
+        amount       NUMERIC(10,2) DEFAULT 0,
+        percentage   NUMERIC(5,2) DEFAULT 0,
+        description  TEXT,
+        created_by   INTEGER REFERENCES users(id),
+        created_at   TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Client Retainer Agreements ───────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS client_retainer_agreements (
+        id             SERIAL PRIMARY KEY,
+        client_id      INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        retainer_id    INTEGER REFERENCES retainers(id) ON DELETE SET NULL,
+        generated_html TEXT NOT NULL,
+        status         TEXT DEFAULT 'draft',
+        generated_at   TIMESTAMPTZ DEFAULT NOW(),
+        signed_at      TIMESTAMPTZ
+      )
+    `);
+
     console.log('✅ PostgreSQL database initialized successfully');
   } finally {
     client.release();

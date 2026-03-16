@@ -3,6 +3,7 @@ const cheerio = require('cheerio');
 const { prepareRun } = require('../database');
 
 const NOTICES_URL = 'https://www.canada.ca/en/immigration-refugees-citizenship/news/notices.html';
+const UPDATES_URL = 'https://www.canada.ca/en/immigration-refugees-citizenship/corporate/publications-manuals/operational-bulletins-manuals/updates.html';
 
 const CATEGORY_KEYWORDS = {
   express_entry:      ['express entry', 'comprehensive ranking', 'crs', 'invitation to apply', 'economic immigration'],
@@ -111,4 +112,126 @@ async function scrapeIRCCNews() {
   return { inserted, total: articles.length };
 }
 
-module.exports = { scrapeIRCCNews };
+/**
+ * Scrape IRCC Program Delivery Updates page (operational bulletins).
+ * Page uses a table with columns: Category | Title (link) | Date
+ */
+async function scrapeIRCCUpdates() {
+  console.log(`[IRCC Agent] Fetching updates from ${UPDATES_URL} ...`);
+  const html = await fetchHTML(UPDATES_URL);
+  console.log(`[IRCC Agent] Got ${html.length} bytes from updates page`);
+
+  const $ = cheerio.load(html);
+  const articles = [];
+  const seen = new Set();
+
+  // IRCC category code mapping
+  const CAT_MAP = {
+    pr: 'permanent_resident',
+    tr: 'temporary_resident',
+    cit: 'citizenship',
+    ref: 'refugee',
+    med: 'medical',
+    man: 'manual',
+  };
+
+  // Try table rows first (the primary structure for this page)
+  $('table tr, tbody tr').each((_, tr) => {
+    const $tr = $(tr);
+    const cells = $tr.find('td');
+    if (cells.length < 2) return;
+
+    // Try 3-column layout: Category | Title | Date
+    let rawCat, rawTitle, rawDate, href;
+
+    if (cells.length >= 3) {
+      rawCat = $(cells[0]).text().trim().toLowerCase();
+      const $link = $(cells[1]).find('a').first();
+      rawTitle = $link.text().trim() || $(cells[1]).text().trim();
+      href = $link.attr('href') || '';
+      rawDate = $(cells[2]).text().trim();
+    } else {
+      // 2-column layout: Title | Date
+      const $link = $(cells[0]).find('a').first();
+      rawTitle = $link.text().trim() || $(cells[0]).text().trim();
+      href = $link.attr('href') || '';
+      rawDate = $(cells[1]).text().trim();
+      rawCat = '';
+    }
+
+    if (rawTitle.length < 5 || seen.has(rawTitle)) return;
+    seen.add(rawTitle);
+
+    const fullUrl = href.startsWith('http')
+      ? href
+      : href
+        ? `https://www.canada.ca${href}`
+        : null;
+
+    const category = CAT_MAP[rawCat] || categorize(rawTitle);
+    const publishedDate = parseDate(rawDate);
+
+    articles.push({
+      title: rawTitle.replace(/\s+/g, ' '),
+      url: fullUrl,
+      summary: rawTitle.replace(/\s+/g, ' '),
+      category,
+      publishedDate,
+    });
+  });
+
+  // Fallback: try list items if no table rows found
+  if (articles.length === 0) {
+    $('li').each((_, li) => {
+      const $li = $(li);
+      const $link = $li.find('a').first();
+      const rawTitle = $link.text().trim().replace(/\s+/g, ' ');
+      const href = ($link.attr('href') || '').trim();
+
+      if (rawTitle.length < 10 || seen.has(rawTitle)) return;
+      seen.add(rawTitle);
+
+      // Try to find a date in the li text
+      const liText = $li.text();
+      const dateMatch = liText.match(/(\w+ \d{1,2},?\s*\d{4})/);
+      const rawDate = dateMatch ? dateMatch[1] : '';
+
+      const fullUrl = href.startsWith('http') ? href : href ? `https://www.canada.ca${href}` : null;
+
+      articles.push({
+        title: rawTitle,
+        url: fullUrl,
+        summary: rawTitle,
+        category: categorize(rawTitle),
+        publishedDate: parseDate(rawDate),
+      });
+    });
+  }
+
+  console.log(`[IRCC Agent] Found ${articles.length} updates (${articles.filter(a => a.publishedDate).length} with dates)`);
+
+  let inserted = 0;
+  for (const a of articles) {
+    try {
+      // Use title as fallback unique key if no URL
+      const uniqueKey = a.url || `no-url:${a.title}`;
+      const result = await prepareRun(
+        `INSERT INTO ircc_updates (title, url, summary, category, published_date)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(url) DO UPDATE SET
+           summary = COALESCE(EXCLUDED.summary, ircc_updates.summary),
+           published_date = COALESCE(EXCLUDED.published_date, ircc_updates.published_date),
+           category = CASE WHEN ircc_updates.category = 'general' THEN EXCLUDED.category ELSE ircc_updates.category END`,
+        a.title, uniqueKey, a.summary, a.category, a.publishedDate
+      );
+      if (result.changes > 0) inserted++;
+    } catch (err) {
+      console.error(`[IRCC Agent] Insert failed: ${err.message}`);
+    }
+  }
+
+  console.log(`[IRCC Agent] Done: ${inserted} upserted out of ${articles.length}`);
+  return { inserted, total: articles.length };
+}
+
+module.exports = { scrapeIRCCNews, scrapeIRCCUpdates };

@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { api } from '../api';
-import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2, Wand2, MessageSquare } from 'lucide-react';
+import PDFRenderer from './PDFRenderer';
+import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2, Wand2, MessageSquare, PanelRightOpen, PanelRightClose, Key, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 
 const STEPS = [
     { id: 'personal', title: 'Personal Information', Icon: User, color: '#4f46e5' },
@@ -268,6 +269,11 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     const [autoFillResult, setAutoFillResult] = useState(null);
     const [fieldVerifications, setFieldVerifications] = useState({});
 
+    const [selectedDocId, setSelectedDocId] = useState(null);
+    const [showDocPanel, setShowDocPanel] = useState(true);
+    const [showClientData, setShowClientData] = useState(false);
+    const [clientDataLocal, setClientDataLocal] = useState([]);
+
     const canVerify = !userRole || userRole === 'Admin' || userRole === 'Case Manager';
 
     // Load field verifications
@@ -302,6 +308,27 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
             console.error('Failed to bulk verify:', err);
         }
     };
+
+    // Fetch client data for the collapsible section
+    useEffect(() => {
+        if (clientId) {
+            api.getClientData(clientId).then(setClientDataLocal).catch(() => setClientDataLocal([]));
+        }
+    }, [clientId]);
+
+    const handleSaveClientData = async () => {
+        try {
+            await api.updateClientData(clientId, clientDataLocal);
+        } catch (e) { console.error('Failed to save client data:', e); }
+    };
+
+    // Verification progress
+    const verificationProgress = useMemo(() => {
+        const keys = Object.keys(fieldVerifications);
+        if (keys.length === 0) return { verified: 0, total: 0, pct: 0 };
+        const verified = keys.filter(k => fieldVerifications[k]?.verified).length;
+        return { verified, total: keys.length, pct: Math.round((verified / keys.length) * 100) };
+    }, [fieldVerifications]);
 
     // Initialize editData when data loads and editing is true by default
     useEffect(() => {
@@ -642,7 +669,43 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     const sectionPct = sStats.total > 0 ? Math.round((sStats.filled / sStats.total) * 100) : 0;
     const verifyStatus = verificationResults?.[step.id]?.status;
 
+    const pdfDocs = (clientDocuments || []).filter(d => d.original_name.toLowerCase().endsWith('.pdf'));
+
     return (
+        <div>
+            {/* Verification Progress Bar */}
+            {verificationProgress.total > 0 && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', marginBottom: 12,
+                    background: verificationProgress.pct === 100 ? 'rgba(16,185,129,.08)' : 'rgba(99,102,241,.06)',
+                    border: `1px solid ${verificationProgress.pct === 100 ? 'rgba(16,185,129,.2)' : 'rgba(99,102,241,.15)'}`,
+                    borderRadius: 10,
+                }}>
+                    <ShieldCheck size={16} style={{ color: verificationProgress.pct === 100 ? '#10b981' : '#6366f1', flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                                Verification Progress
+                            </span>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: verificationProgress.pct === 100 ? '#10b981' : '#6366f1' }}>
+                                {verificationProgress.verified}/{verificationProgress.total} fields ({verificationProgress.pct}%)
+                            </span>
+                        </div>
+                        <div style={{ height: 5, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{
+                                height: '100%', width: `${verificationProgress.pct}%`,
+                                background: verificationProgress.pct === 100 ? '#10b981' : '#6366f1',
+                                borderRadius: 3, transition: 'width 0.3s',
+                            }} />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Split-screen container */}
+            <div style={{ display: 'flex', gap: 0, minHeight: 'calc(100vh - 380px)' }}>
+                {/* Left: PIF form (flexible width) */}
+                <div style={{ flex: showDocPanel ? '0 0 60%' : '1 1 auto', overflow: 'auto', minWidth: 0 }}>
         <div className="pv-shell">
             {/* ── Left Sidebar ─────────────────────────────── */}
             <div className="pv-sidebar">
@@ -804,6 +867,110 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                     <button className="pv-nav-btn next" disabled={currentStep === STEPS.length - 1} onClick={() => setCurrentStep(prev => prev + 1)}>Next <ChevronRight size={16} /></button>
                 </div>
             </div>
+        </div>
+
+                    {/* Collapsible Client Data section */}
+                    <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                        <button onClick={() => setShowClientData(!showClientData)}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                                background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0',
+                                fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)',
+                            }}>
+                            <Key size={14} />
+                            Raw Client Data ({clientDataLocal.length} fields)
+                            {showClientData ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </button>
+                        {showClientData && (
+                            <div style={{ paddingTop: 8 }}>
+                                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => setClientDataLocal(p => [...p, { field_key: '', field_value: '', source: 'manual' }])}
+                                        style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <Plus size={12} /> Add Field
+                                    </button>
+                                    <button className="btn btn-primary btn-sm" onClick={handleSaveClientData}
+                                        style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                        <Save size={12} /> Save
+                                    </button>
+                                </div>
+                                {clientDataLocal.map((item, i) => (
+                                    <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
+                                        <input className="form-input" value={item.field_key} placeholder="field_key" style={{ flex: 1, fontSize: 11, padding: '4px 8px' }}
+                                            onChange={e => { const a=[...clientDataLocal]; a[i]={...a[i],field_key:e.target.value}; setClientDataLocal(a); }} />
+                                        <input className="form-input" value={item.field_value} placeholder="value" style={{ flex: 1, fontSize: 11, padding: '4px 8px' }}
+                                            onChange={e => { const a=[...clientDataLocal]; a[i]={...a[i],field_value:e.target.value}; setClientDataLocal(a); }} />
+                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{item.source||'manual'}</span>
+                                        <button className="btn btn-danger btn-sm" style={{ padding: '2px 6px' }} onClick={() => setClientDataLocal(p=>p.filter((_,j)=>j!==i))}><X size={12} /></button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right: Document Viewer Panel (40%) */}
+                {showDocPanel && (
+                    <div style={{
+                        flex: '0 0 40%', background: '#1e293b', borderRadius: '0 12px 12px 0',
+                        display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 500,
+                    }}>
+                        {/* Document selector */}
+                        <div style={{
+                            padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.1)',
+                            display: 'flex', alignItems: 'center', gap: 8,
+                        }}>
+                            <FileText size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                            <select value={selectedDocId || ''} onChange={e => setSelectedDocId(e.target.value || null)}
+                                style={{
+                                    flex: 1, background: '#334155', color: '#e2e8f0', border: '1px solid #475569',
+                                    borderRadius: 6, padding: '6px 10px', fontSize: 12, outline: 'none',
+                                }}>
+                                <option value="">Select a document to view...</option>
+                                {pdfDocs.map(doc => (
+                                    <option key={doc.id} value={doc.id}>{doc.original_name}</option>
+                                ))}
+                            </select>
+                            <button onClick={() => setShowDocPanel(false)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}
+                                title="Hide document panel">
+                                <PanelRightClose size={16} />
+                            </button>
+                        </div>
+                        {/* PDF Renderer */}
+                        <div style={{ flex: 1, overflow: 'hidden' }}>
+                            {selectedDocId ? (
+                                <PDFRenderer url={api.getDocumentDownloadUrl(selectedDocId)} />
+                            ) : (
+                                <div style={{
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                    height: '100%', color: '#64748b', gap: 12, padding: 20,
+                                }}>
+                                    <Eye size={32} />
+                                    <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'center' }}>Select a document above to view it alongside PIF fields</div>
+                                    <div style={{ fontSize: 11, textAlign: 'center', maxWidth: 250 }}>
+                                        Compare uploaded documents with client data to verify accuracy
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Toggle doc panel button when hidden */}
+            {!showDocPanel && (
+                <button onClick={() => setShowDocPanel(true)}
+                    style={{
+                        position: 'fixed', right: 16, bottom: 80, zIndex: 20,
+                        background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569',
+                        borderRadius: 10, padding: '10px 14px', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
+                        boxShadow: '0 4px 12px rgba(0,0,0,.3)',
+                    }}
+                    title="Show document viewer">
+                    <PanelRightOpen size={16} /> View Documents
+                </button>
+            )}
         </div>
     );
 }
