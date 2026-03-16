@@ -22,7 +22,6 @@ export const api = {
     createClient: (data) => request('/clients', { method: 'POST', body: JSON.stringify(data) }),
     updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteClient: (id) => request(`/clients/${id}`, { method: 'DELETE' }),
-    getDeadlines: (clientId) => request(`/clients/${clientId}/deadlines`),
 
     // Documents
     uploadDocuments: (clientId, files, category = 'general') => {
@@ -118,7 +117,6 @@ export const api = {
     verifyPIFData: (clientId) => request(`/pif/data/${clientId}/verify`, { method: 'POST' }),
     updatePIFData: (clientId, formData) => request(`/pif/data/${clientId}`, { method: 'PUT', body: JSON.stringify({ form_data: formData }) }),
     getPIFOcrData: (clientId) => request(`/pif/data/${clientId}/ocr`),
-    autoFillPIF: (clientId) => request(`/pif/data/${clientId}/autofill`, { method: 'POST' }),
 
     // OCR
     ocrDocument: (docId) => request(`/documents/${docId}/ocr`, { method: 'POST' }),
@@ -170,6 +168,18 @@ export const api = {
     downloadIRCCTemplate: (formNumber) => `${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/download`,
     deleteIRCCTemplate: (formNumber) => request(`/ircc-templates/${encodeURIComponent(formNumber)}`, { method: 'DELETE' }),
 
-    // PIF Seed
-    seedPIFData: (clientId) => request(`/pif/seed/${clientId}`, { method: 'POST' }),
+    // IRCC Template Viewer/Editor
+    getIRCCTemplateFields: (formNumber) => request(`/ircc-templates/${encodeURIComponent(formNumber)}/fields`),
+    getIRCCTemplateFieldsForClient: (formNumber, clientId) => request(`/ircc-templates/${encodeURIComponent(formNumber)}/fields/${clientId}`),
+    viewIRCCTemplate: (formNumber) => `${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/view`,
+    fillIRCCTemplate: (formNumber, fields) => {
+        return fetch(`${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/fill`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fields }),
+        }).then(r => {
+            if (!r.ok) throw new Error('Failed to fill template');
+            return r.blob();
+        });
+    },
 };

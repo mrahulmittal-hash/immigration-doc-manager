@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, CheckSquare, Calendar, CreditCard,
-  Newspaper, UserCog, Mail, LogOut, ChevronDown, Settings, Briefcase, FileText
+  Newspaper, UserCog, Mail, LogOut, ChevronDown, Settings, Briefcase
 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Pipeline from './pages/Pipeline';
 import ClientList from './pages/ClientList';
 import CreateClient from './pages/CreateClient';
-import ClientDetail from './pages/ClientDetail';
+// ClientDetail is now integrated into ClientList's 3-panel layout
 import Tasks from './pages/Tasks';
 import CalendarPage from './pages/CalendarPage';
 import TrustAccounting from './pages/TrustAccounting';
@@ -17,11 +17,8 @@ import SignPage from './pages/SignPage';
 import ClientPortal from './pages/ClientPortal';
 import UsersPage from './pages/UsersPage';
 import ImmigrationUpdates from './pages/ImmigrationUpdates';
-import EmailSettings from './pages/EmailSettings';
-import Employers from './pages/Employers';
-import EmployerDetail from './pages/EmployerDetail';
-import LMIADashboard from './pages/LMIADashboard';
 import IRCCTemplates from './pages/IRCCTemplates';
+import EmailSettings from './pages/EmailSettings';
 import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
 import NotificationPanel from './components/NotificationPanel';
@@ -36,11 +33,10 @@ const NAV_ITEMS = [
 ];
 
 const MORE_ITEMS = [
-  { to: '/retainers',       icon: CreditCard,  label: 'Trust Accounting' },
-  { to: '/ircc-templates',  icon: FileText,    label: 'IRCC Forms' },
-  { to: '/ircc-updates',    icon: Newspaper,   label: 'IRCC Updates' },
-  { to: '/users',           icon: UserCog,     label: 'Users' },
-  { to: '/settings/email',  icon: Mail,        label: 'Email Settings' },
+  { to: '/retainers',    icon: CreditCard,  label: 'Trust Accounting' },
+  { to: '/ircc-updates', icon: Newspaper,   label: 'IRCC Updates' },
+  { to: '/users',        icon: UserCog,     label: 'Users' },
+  { to: '/settings/email', icon: Mail,      label: 'Email Settings' },
 ];
 
 function TopNav({ user, onLogout }) {
@@ -134,31 +130,19 @@ function AdminShell({ children, user, onLogout }) {
   );
 }
 
-function getStoredUser() {
-  try {
-    const stored = localStorage.getItem('crm_user');
-    return stored ? JSON.parse(stored) : null;
-  } catch { return null; }
-}
-
 export default function App() {
-  const [user, setUser] = useState(getStoredUser);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('crm_user');
+    if (stored) {
+      setUser(JSON.parse(stored));
+    }
+  }, []);
 
   const handleLogout = () => {
     setUser(null);
   };
-
-  const ProtectedLayout = () => (
-    user ? (
-      <SessionWrapper user={user} onLogout={handleLogout}>
-        <AdminShell user={user} onLogout={handleLogout}>
-          <Outlet />
-        </AdminShell>
-      </SessionWrapper>
-    ) : (
-      <Navigate to="/login" />
-    )
-  );
 
   return (
     <BrowserRouter>
@@ -171,26 +155,32 @@ export default function App() {
         <Route path="/sign/:token" element={<SignPage />} />
         <Route path="/portal/:token/*" element={<ClientPortal />} />
 
-        {/* Protected Admin routes */}
-        <Route element={<ProtectedLayout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/pipeline" element={<Pipeline />} />
-          <Route path="/clients" element={<ClientList />} />
-          <Route path="/clients/new" element={<CreateClient />} />
-          <Route path="/clients/:id" element={<ClientDetail />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/retainers" element={<TrustAccounting />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/ircc-updates" element={<ImmigrationUpdates />} />
-          <Route path="/settings/email" element={<EmailSettings />} />
-          <Route path="/employers" element={<Employers />} />
-          <Route path="/employers/:id" element={<EmployerDetail />} />
-          <Route path="/lmia" element={<LMIADashboard />} />
-          <Route path="/ircc-templates" element={<IRCCTemplates />} />
-        </Route>
-
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* Protected Admin shell */}
+        <Route path="/*" element={
+          user ? (
+            <SessionWrapper user={user} onLogout={handleLogout}>
+              <AdminShell user={user} onLogout={handleLogout}>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/pipeline" element={<Pipeline />} />
+                  <Route path="/clients" element={<ClientList />} />
+                  <Route path="/clients/new" element={<CreateClient />} />
+                  <Route path="/clients/:id" element={<ClientList />} />
+                  <Route path="/tasks" element={<Tasks />} />
+                  <Route path="/calendar" element={<CalendarPage />} />
+                  <Route path="/retainers" element={<TrustAccounting />} />
+                  <Route path="/users" element={<UsersPage />} />
+                  <Route path="/ircc-updates" element={<ImmigrationUpdates />} />
+                  <Route path="/ircc-templates" element={<IRCCTemplates />} />
+                  <Route path="/settings/email" element={<EmailSettings />} />
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </AdminShell>
+            </SessionWrapper>
+          ) : (
+            <Navigate to="/login" />
+          )
+        } />
       </Routes>
     </BrowserRouter>
   );

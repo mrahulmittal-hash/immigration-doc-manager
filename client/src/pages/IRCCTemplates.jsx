@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import {
   FileText, Search, Upload, Download, Trash2, CheckCircle, Clock,
-  ChevronRight, Filter, X, AlertTriangle, FolderOpen, Globe
+  FolderOpen, Globe, Eye, UserCheck
 } from 'lucide-react';
+import PDFFormViewer from '../components/PDFFormViewer';
 
 const CATEGORY_COLORS = {
   'Express Entry': '#4f46e5',
@@ -32,19 +33,23 @@ export default function IRCCTemplates() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [uploading, setUploading] = useState(null);
+  const [viewingForm, setViewingForm] = useState(null);
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(null);
   const fileRef = useRef();
 
-  useEffect(() => {
-    loadTemplates();
-  }, []);
+  useEffect(() => { loadTemplates(); loadClients(); }, []);
+
+  const loadClients = async () => {
+    try { const c = await api.getClients(); setClients(c); }
+    catch { /* ignore */ }
+  };
 
   const loadTemplates = async () => {
     try {
       const d = await api.getIRCCTemplatesList();
       setData(d);
-    } catch (e) {
-      console.error('Failed to load templates:', e);
-    }
+    } catch (e) { console.error('Failed to load templates:', e); }
     setLoading(false);
   };
 
@@ -63,9 +68,7 @@ export default function IRCCTemplates() {
     try {
       await api.uploadIRCCTemplate(formNumber, file, formName, visaType);
       await loadTemplates();
-    } catch (err) {
-      console.error('Upload failed:', err);
-    }
+    } catch (err) { console.error('Upload failed:', err); }
     setUploading(null);
     e.target.value = '';
   };
@@ -75,9 +78,7 @@ export default function IRCCTemplates() {
     try {
       await api.deleteIRCCTemplate(formNumber);
       await loadTemplates();
-    } catch (err) {
-      console.error('Delete failed:', err);
-    }
+    } catch (err) { console.error('Delete failed:', err); }
   };
 
   if (loading) return <div className="spinner-container"><div className="spinner" /></div>;
@@ -85,7 +86,6 @@ export default function IRCCTemplates() {
   const categories = data?.categories || [];
   const stats = data?.stats || {};
 
-  // Filter
   const filtered = categories
     .filter(c => !selectedCategory || c.visaType === selectedCategory)
     .map(c => ({
@@ -98,128 +98,130 @@ export default function IRCCTemplates() {
     }))
     .filter(c => c.forms.length > 0);
 
+  const selectedCat = categories.find(c => c.visaType === selectedCategory);
+  const selectedCatUploaded = selectedCat ? selectedCat.forms.filter(f => f.uploaded).length : 0;
+  const completionPct = stats.totalForms ? Math.round((stats.uploadedForms / stats.totalForms) * 100) : 0;
+
   return (
-    <div className="ircc-templates-page">
+    <div className="clients-3panel">
       <input type="file" ref={fileRef} accept=".pdf" style={{ display: 'none' }} onChange={onFileSelected} />
 
-      {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-          IRCC Form Templates
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-          Manage fillable IRCC form templates organized by visa category
-        </p>
-      </div>
-
-      {/* Stats */}
-      <div className="dash-stats-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
-        <div className="dash-stat-card">
-          <div className="dash-stat-accent" style={{ background: '#4f46e5' }} />
-          <div className="dash-stat-value" style={{ color: '#4f46e5' }}>{stats.totalCategories || 0}</div>
-          <div className="dash-stat-label">Visa Categories</div>
-        </div>
-        <div className="dash-stat-card">
-          <div className="dash-stat-accent" style={{ background: '#3b82f6' }} />
-          <div className="dash-stat-value" style={{ color: '#3b82f6' }}>{stats.totalForms || 0}</div>
-          <div className="dash-stat-label">Total Forms</div>
-        </div>
-        <div className="dash-stat-card">
-          <div className="dash-stat-accent" style={{ background: '#10b981' }} />
-          <div className="dash-stat-value" style={{ color: '#10b981' }}>{stats.uploadedForms || 0}</div>
-          <div className="dash-stat-label">Templates Uploaded</div>
-        </div>
-        <div className="dash-stat-card">
-          <div className="dash-stat-accent" style={{ background: '#f59e0b' }} />
-          <div className="dash-stat-value" style={{ color: '#f59e0b' }}>{stats.pendingForms || 0}</div>
-          <div className="dash-stat-label">Pending Upload</div>
-        </div>
-      </div>
-
-      <div className="ircc-templates-layout">
-        {/* Sidebar */}
-        <div className="ircc-category-sidebar">
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border-light)' }}>
-            <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search forms..."
-                style={{
-                  width: '100%', padding: '8px 10px 8px 30px', border: '1px solid var(--border)',
-                  borderRadius: 8, fontSize: 12, background: 'var(--bg-base)', outline: 'none',
-                }}
-              />
-            </div>
+      {/* ═══ LEFT SIDEBAR ═══ */}
+      <div className="clients-sidebar">
+        <div style={{ padding: '16px 12px 8px', borderBottom: '1px solid var(--border-light)' }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 10 }}>IRCC Forms</div>
+          <div className="clients-search-wrap" style={{ padding: 0 }}>
+            <Search size={14} className="clients-search-icon" style={{ left: 12 }} />
+            <input className="clients-search-input" placeholder="Search forms..."
+              value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <button
-            className={`ircc-cat-btn ${!selectedCategory ? 'active' : ''}`}
+        </div>
+
+        <div className="clients-list">
+          <div
+            className={`clients-list-item ${!selectedCategory ? 'active' : ''}`}
             onClick={() => setSelectedCategory(null)}
+            style={{ padding: '10px 16px' }}
           >
-            <Globe size={14} /> All Categories
-            <span className="ircc-cat-count">{categories.length}</span>
-          </button>
+            <Globe size={14} style={{ color: '#0d9488', flexShrink: 0 }} />
+            <div className="clients-item-info">
+              <div className="clients-item-name" style={{ fontSize: 12 }}>All Categories</div>
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: 10 }}>
+              {categories.length}
+            </span>
+          </div>
           {categories.map(c => (
-            <button
-              key={c.visaType}
-              className={`ircc-cat-btn ${selectedCategory === c.visaType ? 'active' : ''}`}
+            <div key={c.visaType}
+              className={`clients-list-item ${selectedCategory === c.visaType ? 'active' : ''}`}
               onClick={() => setSelectedCategory(c.visaType)}
+              style={{ padding: '10px 16px' }}
             >
-              <div className="ircc-cat-dot" style={{ background: CATEGORY_COLORS[c.visaType] || '#6b7280' }} />
-              <span style={{ flex: 1, textAlign: 'left' }}>{c.visaType}</span>
-              <span className="ircc-cat-count">{c.forms.length}</span>
-            </button>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: CATEGORY_COLORS[c.visaType] || '#6b7280' }} />
+              <div className="clients-item-info">
+                <div className="clients-item-name" style={{ fontSize: 12 }}>{c.visaType}</div>
+                <div className="clients-item-meta">{c.forms.filter(f => f.uploaded).length}/{c.forms.length} uploaded</div>
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 8px', borderRadius: 10 }}>
+                {c.forms.length}
+              </span>
+            </div>
           ))}
         </div>
 
-        {/* Main */}
-        <div className="ircc-templates-main">
+        <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+          {categories.length} categories · {stats.totalForms || 0} forms
+        </div>
+      </div>
+
+      {/* ═══ CENTER PANEL ═══ */}
+      <div className="clients-center">
+        <div className="clients-center-scroll">
           {filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)' }}>
-              <FolderOpen size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
-              <div style={{ fontSize: 14, fontWeight: 600 }}>No forms found</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
+              <FolderOpen size={48} style={{ opacity: 0.2, marginBottom: 16 }} />
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>No forms found</div>
+              <div style={{ fontSize: 13 }}>Try adjusting your search or category filter</div>
             </div>
           ) : (
             filtered.map(cat => (
-              <div key={cat.visaType} className="ircc-cat-section">
-                <div className="ircc-cat-header">
-                  <div className="ircc-cat-header-dot" style={{ background: CATEGORY_COLORS[cat.visaType] || '#6b7280' }} />
-                  <h3>{cat.visaType}</h3>
-                  <span className="ircc-cat-header-count">{cat.forms.length} form{cat.forms.length !== 1 ? 's' : ''}</span>
+              <div key={cat.visaType} style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: CATEGORY_COLORS[cat.visaType] || '#6b7280' }} />
+                  <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>{cat.visaType}</h3>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                    {cat.forms.length} form{cat.forms.length !== 1 ? 's' : ''}
+                  </span>
                 </div>
-                <div className="ircc-form-grid">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
                   {cat.forms.map(form => (
-                    <div key={form.form_number} className={`ircc-form-card ${form.uploaded ? 'uploaded' : ''}`}>
-                      <div className="ircc-form-card-top">
-                        <div className="ircc-form-number">{form.form_number}</div>
-                        {form.uploaded ? (
-                          <CheckCircle size={16} color="#10b981" />
-                        ) : (
-                          <Clock size={16} color="#9ca3af" />
-                        )}
+                    <div key={form.form_number} className="clients-detail-card" style={{
+                      padding: 16, marginBottom: 0,
+                      borderLeft: `3px solid ${form.uploaded ? '#10b981' : '#e5e7eb'}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: CATEGORY_COLORS[cat.visaType] || '#6b7280', background: `${CATEGORY_COLORS[cat.visaType] || '#6b7280'}12`, padding: '2px 8px', borderRadius: 6 }}>
+                          {form.form_number}
+                        </span>
+                        {form.uploaded ? <CheckCircle size={16} color="#10b981" /> : <Clock size={16} color="#9ca3af" />}
                       </div>
-                      <div className="ircc-form-name">{form.name || form.form_number}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4, lineHeight: 1.3 }}>
+                        {form.name || form.form_number}
+                      </div>
                       {form.field_mappings && (
-                        <div className="ircc-form-fields">{Object.keys(form.field_mappings).length} field{Object.keys(form.field_mappings).length !== 1 ? 's' : ''} mapped</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+                          {Object.keys(form.field_mappings).length} field{Object.keys(form.field_mappings).length !== 1 ? 's' : ''} mapped
+                        </div>
                       )}
-                      <div className="ircc-form-actions">
+                      <div style={{ display: 'flex', gap: 6 }}>
                         {form.uploaded ? (
                           <>
-                            <a href={api.downloadIRCCTemplate(form.form_number)} className="ircc-form-btn download" target="_blank" rel="noreferrer">
-                              <Download size={12} /> Download
+                            <button className="btn btn-primary btn-sm"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
+                              onClick={() => setViewingForm({
+                                formNumber: form.form_number,
+                                formName: form.name || form.form_number,
+                                clientId: selectedClient?.id,
+                                clientName: selectedClient ? `${selectedClient.first_name} ${selectedClient.last_name}` : undefined,
+                              })}>
+                              <Eye size={12} /> {selectedClient ? 'View & Fill' : 'View / Edit'}
+                            </button>
+                            <a href={api.downloadIRCCTemplate(form.form_number)}
+                              className="btn btn-ghost btn-sm" target="_blank" rel="noreferrer"
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none', fontSize: 11 }}>
+                              <Download size={12} />
                             </a>
-                            <button className="ircc-form-btn delete" onClick={() => handleDelete(form.form_number)}>
+                            <button className="btn btn-ghost btn-sm"
+                              style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
+                              onClick={() => handleDelete(form.form_number)}>
                               <Trash2 size={12} />
                             </button>
                           </>
                         ) : (
-                          <button
-                            className="ircc-form-btn upload"
+                          <button className="btn btn-primary btn-sm"
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
                             onClick={() => handleUpload(form.form_number, form.name, cat.visaType)}
-                            disabled={uploading === form.form_number}
-                          >
+                            disabled={uploading === form.form_number}>
                             <Upload size={12} /> {uploading === form.form_number ? 'Uploading...' : 'Upload PDF'}
                           </button>
                         )}
@@ -232,6 +234,97 @@ export default function IRCCTemplates() {
           )}
         </div>
       </div>
+
+      {/* ═══ RIGHT CONTEXT PANEL ═══ */}
+      <div className="clients-context">
+        {/* Client Selector for Auto-Fill */}
+        <div className="clients-ctx-section">
+          <div className="clients-ctx-label">Auto-Fill with Client</div>
+          <select className="form-select" style={{ width: '100%', marginBottom: 8, fontSize: 12 }}
+            value={selectedClient?.id || ''}
+            onChange={e => {
+              const c = clients.find(c => c.id === Number(e.target.value));
+              setSelectedClient(c || null);
+            }}>
+            <option value="">— No client (blank forms) —</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.first_name} {c.last_name}{c.visa_type ? ` (${c.visa_type})` : ''}</option>
+            ))}
+          </select>
+          {selectedClient && (
+            <div style={{ fontSize: 11, color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <CheckCircle size={12} /> Forms will auto-fill with {selectedClient.first_name}'s data
+            </div>
+          )}
+        </div>
+
+        {/* Template Stats */}
+        <div className="clients-ctx-section">
+          <div className="clients-ctx-label">Template Stats</div>
+          <div className="clients-ctx-stat-row">
+            <span>Visa Categories</span>
+            <strong style={{ color: '#4f46e5' }}>{stats.totalCategories || 0}</strong>
+          </div>
+          <div className="clients-ctx-stat-row">
+            <span>Total Forms</span>
+            <strong style={{ color: '#3b82f6' }}>{stats.totalForms || 0}</strong>
+          </div>
+          <div className="clients-ctx-stat-row">
+            <span>Uploaded</span>
+            <strong style={{ color: '#10b981' }}>{stats.uploadedForms || 0}</strong>
+          </div>
+          <div className="clients-ctx-stat-row">
+            <span>Pending</span>
+            <strong style={{ color: '#f59e0b' }}>{stats.pendingForms || 0}</strong>
+          </div>
+        </div>
+
+        {/* Upload Progress */}
+        <div className="clients-ctx-section">
+          <div className="clients-ctx-label">Upload Progress</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{completionPct}% complete</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{stats.uploadedForms || 0}/{stats.totalForms || 0}</span>
+          </div>
+          <div style={{ height: 6, background: 'var(--bg-elevated)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${completionPct}%`, background: 'linear-gradient(90deg, #10b981, #0d9488)', borderRadius: 3, transition: 'width 0.3s' }} />
+          </div>
+        </div>
+
+        {/* Selected Category Info */}
+        {selectedCat && (
+          <div className="clients-ctx-section">
+            <div className="clients-ctx-label">Selected Category</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: CATEGORY_COLORS[selectedCat.visaType] || '#6b7280' }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{selectedCat.visaType}</span>
+            </div>
+            <div className="clients-ctx-stat-row">
+              <span>Forms</span>
+              <strong>{selectedCat.forms.length}</strong>
+            </div>
+            <div className="clients-ctx-stat-row">
+              <span>Uploaded</span>
+              <strong style={{ color: '#10b981' }}>{selectedCatUploaded}</strong>
+            </div>
+            <div className="clients-ctx-stat-row">
+              <span>Pending</span>
+              <strong style={{ color: '#f59e0b' }}>{selectedCat.forms.length - selectedCatUploaded}</strong>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PDF Form Viewer Modal */}
+      {viewingForm && (
+        <PDFFormViewer
+          formNumber={viewingForm.formNumber}
+          formName={viewingForm.formName}
+          clientId={viewingForm.clientId}
+          clientName={viewingForm.clientName}
+          onClose={() => setViewingForm(null)}
+        />
+      )}
     </div>
   );
 }
