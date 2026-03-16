@@ -51,6 +51,7 @@ const TABS = [
   { id: 'notes',       label: 'Notes',            Icon: MessageSquare },
   { id: 'pif',         label: 'PIF Data',         Icon: ClipboardList },
   { id: 'docs-forms',  label: 'Documents & Forms', Icon: FileText },
+  { id: 'ircc-forms',  label: 'IRCC Forms',       Icon: Stamp },
   { id: 'signatures',  label: 'Signatures',       Icon: PenTool },
   { id: 'trust',       label: 'Trust Account',    Icon: Wallet },
   { id: 'data',        label: 'Client Data',      Icon: Key },
@@ -746,6 +747,9 @@ export default function ClientDetail() {
 
       {/* ── Emails Tab ────────────────────────────────────── */}
       {activeTab === 'emails' && <EmailList clientId={id} />}
+
+      {/* ── IRCC Forms Tab ──────────────────────────────────── */}
+      {activeTab === 'ircc-forms' && <IRCCFormGenerator clientId={id} />}
 
       {/* ── Signatures Tab ─────────────────────────────────── */}
       {activeTab === 'signatures' && <SignatureManager clientId={id} />}

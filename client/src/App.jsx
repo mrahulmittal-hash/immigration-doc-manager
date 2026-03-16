@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, CheckSquare, Calendar, CreditCard,
-  Newspaper, UserCog, Mail, LogOut, ChevronDown, Settings, Briefcase
+  Newspaper, UserCog, Mail, LogOut, ChevronDown, Settings, Briefcase, FileText
 } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import Pipeline from './pages/Pipeline';
@@ -21,6 +21,7 @@ import EmailSettings from './pages/EmailSettings';
 import Employers from './pages/Employers';
 import EmployerDetail from './pages/EmployerDetail';
 import LMIADashboard from './pages/LMIADashboard';
+import IRCCTemplates from './pages/IRCCTemplates';
 import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
 import NotificationPanel from './components/NotificationPanel';
@@ -35,10 +36,11 @@ const NAV_ITEMS = [
 ];
 
 const MORE_ITEMS = [
-  { to: '/retainers',    icon: CreditCard,  label: 'Trust Accounting' },
-  { to: '/ircc-updates', icon: Newspaper,   label: 'IRCC Updates' },
-  { to: '/users',        icon: UserCog,     label: 'Users' },
-  { to: '/settings/email', icon: Mail,      label: 'Email Settings' },
+  { to: '/retainers',       icon: CreditCard,  label: 'Trust Accounting' },
+  { to: '/ircc-templates',  icon: FileText,    label: 'IRCC Forms' },
+  { to: '/ircc-updates',    icon: Newspaper,   label: 'IRCC Updates' },
+  { to: '/users',           icon: UserCog,     label: 'Users' },
+  { to: '/settings/email',  icon: Mail,        label: 'Email Settings' },
 ];
 
 function TopNav({ user, onLogout }) {
@@ -185,6 +187,7 @@ export default function App() {
           <Route path="/employers" element={<Employers />} />
           <Route path="/employers/:id" element={<EmployerDetail />} />
           <Route path="/lmia" element={<LMIADashboard />} />
+          <Route path="/ircc-templates" element={<IRCCTemplates />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" />} />

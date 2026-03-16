@@ -193,7 +193,7 @@ function ArraySection({ sectionKey, rows, fields, label, optional, getVerifyProp
    ════════════════════════════════════════════════════════════ */
 export default function PIFViewer({ data, verificationResults, clientDocuments, clientId, onDataSaved }) {
     const [currentStep, setCurrentStep] = useState(0);
-    const [editing, setEditing] = useState(false);
+    const [editing, setEditing] = useState(true);
     const [editData, setEditData] = useState(null);
     const [saving, setSaving] = useState(false);
     const [ocrData, setOcrData] = useState(null);
@@ -202,6 +202,13 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     const [viewMode, setViewMode] = useState('form'); // 'form' | 'compare'
     const [autoFilling, setAutoFilling] = useState(false);
     const [autoFillResult, setAutoFillResult] = useState(null);
+
+    // Initialize editData when data loads and editing is true by default
+    useEffect(() => {
+        if (editing && data && !editData) {
+            setEditData(JSON.parse(JSON.stringify(data)));
+        }
+    }, [data, editing]);
 
     const d = editing ? (editData || data || {}) : (data || {});
 

@@ -504,6 +504,159 @@ router.post('/data/:clientId/autofill', async (req, res) => {
     }
 });
 
+// POST /api/pif/seed/:clientId — Seed comprehensive dummy PIF data for testing
+router.post('/seed/:clientId', async (req, res) => {
+    try {
+        const clientId = parseInt(req.params.clientId);
+        const client = await prepareGet('SELECT * FROM clients WHERE id = ?', clientId);
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+
+        const sampleData = {
+            // Personal Information
+            firstName: client.first_name || 'Anish',
+            lastName: client.last_name || 'Garg',
+            dob: client.date_of_birth || '1992-06-15',
+            placeOfBirth: 'New Delhi, India',
+            nationality: client.nationality || 'Indian',
+            gender: 'Male',
+            eyeColour: 'Brown',
+            height: '5 ft 10 in',
+
+            // Canada History
+            appliedBefore: 'Yes',
+            appliedBeforeDetails: 'Applied for Study Permit in 2018 — approved. Applied for PGWP in 2020 — approved.',
+            refusedBefore: 'No',
+            refusedBeforeDetails: '',
+            medicalExamDone: 'Yes',
+            medicalExamDetails: 'IME completed on 2025-11-20 at Medisys, Toronto. Panel physician Dr. R. Singh. UMI: 1234567890.',
+            firstEntryDate: '2018-09-01',
+            placeOfEntry: 'Toronto Pearson International Airport (YYZ)',
+            purposeOfVisit: 'Study — Master of Computer Science at University of Toronto',
+            lastEntryDate: '2024-03-15',
+            lastEntryPlace: 'Toronto Pearson International Airport (YYZ)',
+            biometricsDone: 'Yes',
+
+            // Passport
+            passportNumber: client.passport_number || 'K8234567',
+            passportIssueDate: '2020-03-10',
+            passportExpiryDate: '2030-03-09',
+            passportCountry: 'India',
+            maritalStatus: 'Married',
+
+            // Spouse
+            spouseMarriageDate: '2021-12-15',
+            spouseFirstName: 'Priya',
+            spouseLastName: 'Garg',
+            spouseDob: '1994-02-28',
+            spousePlaceOfBirth: 'Mumbai, India',
+            spouseOccupation: 'UX Designer at Shopify',
+            spouseAddress: '200 King St W, Apt 1507, Toronto, ON M5H 1K4',
+            previouslyMarried: 'No',
+            prevMarriageDate: '',
+            prevMarriageEndDate: '',
+            prevSpouseFirstName: '',
+            prevSpouseLastName: '',
+            prevSpouseDob: '',
+
+            // Parents
+            motherFirstName: 'Sunita',
+            motherLastName: 'Garg',
+            motherDob: '1965-08-22',
+            motherDeathDate: '',
+            motherPlaceOfBirth: 'Jaipur, India',
+            motherOccupation: 'Retired Teacher',
+            motherAddress: '45 Malviya Nagar, Jaipur, Rajasthan 302017, India. sunita.garg@gmail.com',
+            fatherFirstName: 'Rajesh',
+            fatherLastName: 'Garg',
+            fatherDob: '1962-04-10',
+            fatherDeathDate: '',
+            fatherPlaceOfBirth: 'Jaipur, India',
+            fatherOccupation: 'Retired Bank Manager — State Bank of India',
+            fatherAddress: '45 Malviya Nagar, Jaipur, Rajasthan 302017, India. rajesh.garg62@gmail.com',
+
+            // Education
+            education: [
+                { from: '2018-09', to: '2020-06', institute: 'University of Toronto', city: 'Toronto, ON, Canada', field: 'Master of Computer Science' },
+                { from: '2014-07', to: '2018-05', institute: 'Delhi Technological University', city: 'New Delhi, India', field: 'Bachelor of Technology — Computer Science' },
+                { from: '2012-04', to: '2014-03', institute: 'Delhi Public School, R.K. Puram', city: 'New Delhi, India', field: 'Higher Secondary (CBSE) — Science Stream' },
+            ],
+
+            // Work History
+            work: [
+                { from: '2022-01', to: 'Present', jobTitle: 'Senior Software Engineer', city: 'Toronto', country: 'Canada', companyName: 'TechNova Solutions Inc.' },
+                { from: '2020-07', to: '2021-12', jobTitle: 'Software Developer', city: 'Toronto', country: 'Canada', companyName: 'Wealthsimple Financial Corp.' },
+                { from: '2018-05', to: '2018-08', jobTitle: 'Research Assistant (Summer)', city: 'Toronto', country: 'Canada', companyName: 'University of Toronto — DCS Lab' },
+                { from: '2017-05', to: '2017-08', jobTitle: 'Software Engineering Intern', city: 'Bangalore', country: 'India', companyName: 'Infosys Ltd.' },
+            ],
+
+            // Children
+            children: [
+                { firstName: 'Aarav', lastName: 'Garg', relation: 'Son', dob: '2023-08-10', placeOfBirth: 'Toronto, Canada', maritalStatus: 'N/A', occupation: 'N/A', eyeColour: 'Brown', height: '2 ft 6 in', currentAddress: '200 King St W, Apt 1507, Toronto, ON M5H 1K4' },
+            ],
+
+            // Siblings
+            siblings: [
+                { name: 'Vikram Garg', relation: 'Brother', dob: '1996-11-30', placeOfBirth: 'Jaipur, India', maritalStatus: 'Single', occupation: 'Data Analyst at Deloitte India', addressEmail: '12 Sardar Patel Marg, Jaipur 302001, India. vikram.garg96@gmail.com' },
+            ],
+
+            // Addresses
+            addresses: [
+                { from: '2022-01', to: 'Present', address: '200 King St W, Apt 1507, M5H 1K4', cityState: 'Toronto, Ontario', country: 'Canada', activity: 'Employed — Senior Software Engineer at TechNova Solutions' },
+                { from: '2020-07', to: '2021-12', address: '88 Harbour St, Unit 2201, M5J 0B5', cityState: 'Toronto, Ontario', country: 'Canada', activity: 'Employed — Software Developer at Wealthsimple' },
+                { from: '2018-09', to: '2020-06', address: '89 Chestnut St, Residence Hall B, Room 415', cityState: 'Toronto, Ontario', country: 'Canada', activity: 'Student — University of Toronto' },
+                { from: '2014-07', to: '2018-08', address: '45 Malviya Nagar', cityState: 'Jaipur, Rajasthan', country: 'India', activity: 'Student — Delhi Technological University (commuting)' },
+            ],
+
+            // Travel History
+            travel: [
+                { from: '2024-12', to: '2025-01', place: 'New Delhi & Jaipur, India', purpose: 'Family visit — annual holiday' },
+                { from: '2023-06', to: '2023-06', place: 'New York City, USA', purpose: 'Tech conference — attendance at AWS re:Invent' },
+                { from: '2022-03', to: '2022-03', place: 'Vancouver, BC, Canada', purpose: 'Business meeting with west coast clients' },
+                { from: '2019-12', to: '2020-01', place: 'Jaipur & Mumbai, India', purpose: 'Winter break — visiting family' },
+            ],
+
+            // Relatives in Canada
+            relatives: [
+                { firstName: 'Amit', lastName: 'Garg', city: 'Brampton, ON', relation: 'Uncle (father\'s brother)', phone: '+1 (905) 555-0178', email: 'amit.garg.brampton@gmail.com', yearsInCanada: '18' },
+                { firstName: 'Neha', lastName: 'Sharma', city: 'Mississauga, ON', relation: 'Cousin', phone: '+1 (647) 555-0234', email: 'neha.sharma.miss@gmail.com', yearsInCanada: '8' },
+            ],
+
+            // Language Test Scores
+            testType: 'IELTS General Training',
+            ieltsListening: '8.5',
+            ieltsReading: '8.0',
+            ieltsWriting: '7.5',
+            ieltsSpeaking: '7.5',
+            ieltsOverall: '7.875',
+
+            // Declarations
+            criminalHistory: 'No',
+            criminalDetails: '',
+            healthIssues: 'No',
+            healthDetails: '',
+            consent: true,
+        };
+
+        const existing = await prepareGet('SELECT * FROM pif_submissions WHERE client_id = ?', clientId);
+        if (existing) {
+            await prepareRun(
+                'UPDATE pif_submissions SET form_data = ?, updated_at = NOW() WHERE client_id = ?',
+                JSON.stringify(sampleData), clientId
+            );
+        } else {
+            await prepareRun(
+                'INSERT INTO pif_submissions (client_id, form_data) VALUES (?, ?)',
+                clientId, JSON.stringify(sampleData)
+            );
+        }
+
+        res.json({ success: true, message: 'Dummy PIF data seeded', fields_count: Object.keys(sampleData).length });
+    } catch (err) {
+        console.error('Error seeding PIF data:', err);
+        res.status(500).json({ error: 'Failed to seed PIF data' });
+    }
+});
+
 // ═══════════════════════════════════════════════════════════════
 // /:token wildcard routes — MUST come AFTER /data/* routes
 // ═══════════════════════════════════════════════════════════════

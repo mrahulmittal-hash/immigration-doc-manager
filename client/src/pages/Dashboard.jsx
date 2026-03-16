@@ -4,7 +4,8 @@ import { api } from '../api';
 import {
   Users, CheckCircle, Clock, FileText, Calendar, CreditCard,
   UserPlus, CheckSquare, ArrowRight, BarChart3, Newspaper, AlertTriangle,
-  Activity, Globe, GitBranch, Briefcase, Cake, Award, Circle, Check
+  Activity, Globe, GitBranch, Briefcase, Cake, Award, Circle, Check,
+  Building2, FileSearch, Stamp, Wallet
 } from 'lucide-react';
 
 const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const [irccUpdates, setIrccUpdates] = useState([]);
   const [deadlines, setDeadlines] = useState([]);
   const [todayData, setTodayData] = useState({ tasks: [], birthdays: [], anniversaries: [], deadlines: [] });
+  const [irccTemplateStats, setIrccTemplateStats] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -24,13 +26,15 @@ export default function Dashboard() {
       api.getIRCCUpdates(null, 5).catch(() => []),
       api.getUpcomingDeadlines().catch(() => []),
       api.getDashboardToday ? api.getDashboardToday().catch(() => ({ tasks: [], birthdays: [], anniversaries: [], deadlines: [] })) : Promise.resolve({ tasks: [], birthdays: [], anniversaries: [], deadlines: [] }),
+      api.getIRCCTemplatesList().catch(() => ({ stats: { totalForms: 0 } })),
     ])
-      .then(([s, c, ircc, dl, today]) => {
+      .then(([s, c, ircc, dl, today, templates]) => {
         setStats(s);
         setClients(c);
         setIrccUpdates(ircc);
         setDeadlines(dl);
         setTodayData(today);
+        setIrccTemplateStats(templates?.stats || null);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -72,23 +76,44 @@ export default function Dashboard() {
         </h1>
       </div>
 
-      {/* Stats */}
-      <div className="dash-stats-row">
-        {[
-          { value: active, label: 'Active Clients', color: '#0d9488' },
-          { value: stats?.documents || 0, label: 'Documents', color: '#3b82f6' },
-          { value: pending, label: 'PIFs Pending', color: '#f59e0b' },
-          { value: deadlines.length, label: 'Upcoming Deadlines', color: '#ef4444', warn: deadlines.length > 0 },
-        ].map(s => (
-          <div key={s.label} className="dash-stat-card">
-            <div className="dash-stat-accent" style={{ background: s.color }} />
-            <div className="dash-stat-value" style={{ color: s.color }}>{s.value}</div>
-            {s.warn && <span style={{ position: 'absolute', top: 16, right: 16, fontSize: 14 }}>!</span>}
-            <div className="dash-stat-label">{s.label}</div>
+      {/* Stats — 9 tiles in 3×3 grid */}
+      <div className="dash-stats-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        {/* Row 1 */}
+        <Link to="/clients" className="dash-stat-card" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
+          <div className="dash-stat-accent" style={{ background: '#0d9488' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Users size={18} color="#0d9488" />
+            <div className="dash-stat-value" style={{ color: '#0d9488' }}>{active}</div>
           </div>
-        ))}
+          <div className="dash-stat-label">Active Clients</div>
+        </Link>
+        <Link to="/clients" className="dash-stat-card" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
+          <div className="dash-stat-accent" style={{ background: '#3b82f6' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <FileText size={18} color="#3b82f6" />
+            <div className="dash-stat-value" style={{ color: '#3b82f6' }}>{stats?.documents || 0}</div>
+          </div>
+          <div className="dash-stat-label">Documents</div>
+        </Link>
+        <Link to="/clients" className="dash-stat-card" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
+          <div className="dash-stat-accent" style={{ background: '#f59e0b' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Clock size={18} color="#f59e0b" />
+            <div className="dash-stat-value" style={{ color: '#f59e0b' }}>{pending}</div>
+          </div>
+          <div className="dash-stat-label">PIFs Pending</div>
+        </Link>
 
-        {/* Celebrations tile */}
+        {/* Row 2 */}
+        <div className="dash-stat-card">
+          <div className="dash-stat-accent" style={{ background: '#ef4444' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AlertTriangle size={18} color="#ef4444" />
+            <div className="dash-stat-value" style={{ color: '#ef4444' }}>{deadlines.length}</div>
+          </div>
+          {deadlines.length > 0 && <span style={{ position: 'absolute', top: 16, right: 16, fontSize: 14 }}>!</span>}
+          <div className="dash-stat-label">Upcoming Deadlines</div>
+        </div>
         <div className="dash-stat-card" style={{ cursor: 'default' }}>
           <div className="dash-stat-accent" style={{ background: 'linear-gradient(90deg, #f59e0b, #8b5cf6)' }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -126,6 +151,40 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        <Link to="/ircc-templates" className="dash-stat-card" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
+          <div className="dash-stat-accent" style={{ background: '#4f46e5' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Stamp size={18} color="#4f46e5" />
+            <div className="dash-stat-value" style={{ color: '#4f46e5' }}>{irccTemplateStats?.totalForms || 0}</div>
+          </div>
+          <div className="dash-stat-label">IRCC Forms</div>
+        </Link>
+
+        {/* Row 3 */}
+        <Link to="/employers" className="dash-stat-card" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
+          <div className="dash-stat-accent" style={{ background: '#0891b2' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Building2 size={18} color="#0891b2" />
+            <div className="dash-stat-value" style={{ color: '#0891b2' }}>—</div>
+          </div>
+          <div className="dash-stat-label">Employers</div>
+        </Link>
+        <Link to="/lmia" className="dash-stat-card" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
+          <div className="dash-stat-accent" style={{ background: '#8b5cf6' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <FileSearch size={18} color="#8b5cf6" />
+            <div className="dash-stat-value" style={{ color: '#8b5cf6' }}>—</div>
+          </div>
+          <div className="dash-stat-label">LMIA Tracker</div>
+        </Link>
+        <Link to="/retainers" className="dash-stat-card" style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}>
+          <div className="dash-stat-accent" style={{ background: '#10b981' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Wallet size={18} color="#10b981" />
+            <div className="dash-stat-value" style={{ color: '#10b981' }}>—</div>
+          </div>
+          <div className="dash-stat-label">Trust Balance</div>
+        </Link>
       </div>
 
       {/* TODAY'S OVERVIEW */}

@@ -153,4 +153,23 @@ export const api = {
 
     // Dashboard
     getDashboardToday: () => request('/dashboard/today'),
+
+    // IRCC Templates Management
+    getIRCCTemplatesList: () => request('/ircc-templates'),
+    getIRCCTemplatesByType: (visaType) => request(`/ircc-templates/${encodeURIComponent(visaType)}`),
+    uploadIRCCTemplate: (formNumber, file, formName, visaType) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (formName) formData.append('form_name', formName);
+        if (visaType) formData.append('visa_type', visaType);
+        return fetch(`${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/upload`, {
+            method: 'POST',
+            body: formData,
+        }).then(r => r.json());
+    },
+    downloadIRCCTemplate: (formNumber) => `${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/download`,
+    deleteIRCCTemplate: (formNumber) => request(`/ircc-templates/${encodeURIComponent(formNumber)}`, { method: 'DELETE' }),
+
+    // PIF Seed
+    seedPIFData: (clientId) => request(`/pif/seed/${clientId}`, { method: 'POST' }),
 };
