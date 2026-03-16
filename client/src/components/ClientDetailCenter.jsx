@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
+import { useAuth } from '../contexts/AuthContext';
 import FileUpload from './FileUpload';
 import Toast from './Toast';
 import PIFViewer from './PIFViewer';
@@ -16,12 +17,13 @@ import SignatureManager from './SignatureManager';
 import TrustAccountPanel from './TrustAccountPanel';
 import TaskPanel from './TaskPanel';
 import OcrConfirmModal from './OcrConfirmModal';
+import AuditLog from './AuditLog';
 import {
   Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key,
   CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap,
   Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks,
   Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck,
-  ScanLine, Wallet, Link2, CheckSquare, Eye
+  ScanLine, Wallet, Link2, CheckSquare, Eye, History
 } from 'lucide-react';
 
 const VISA_COLORS = {
@@ -54,11 +56,14 @@ const TABS = [
   { id: 'deadlines', label: 'Deadlines', Icon: CalendarClock },
   { id: 'checklist', label: 'Doc Checklist', Icon: ListChecks },
   { id: 'emails', label: 'Emails', Icon: Inbox },
+  { id: 'ircc-forms', label: 'IRCC Forms', Icon: Stamp },
+  { id: 'audit', label: 'Audit Log', Icon: History },
 ];
 
 const CATEGORIES = ['general','passport','identity','education','employment','financial','medical','letter','other'];
 
 export default function ClientDetailCenter({ clientId, onClientUpdated }) {
+  const { user } = useAuth();
   const id = clientId;
   const [client, setClient] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -333,7 +338,7 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
                   {verifying ? <><Search size={13} /> Verifying…</> : <><ShieldCheck size={14} /> Verify</>}
                 </button>
               </div>
-              <PIFViewer data={pifData.data} verificationResults={verificationResults} clientDocuments={client.documents||[]} clientId={id} onDataSaved={(newData) => { setPifData(prev => ({ ...prev, data: newData })); setToast({ message: 'PIF data saved', type: 'success' }); }} />
+              <PIFViewer data={pifData.data} verificationResults={verificationResults} clientDocuments={client.documents||[]} clientId={id} userRole={user?.role} onDataSaved={(newData) => { setPifData(prev => ({ ...prev, data: newData })); setToast({ message: 'PIF data saved', type: 'success' }); }} />
             </div>
           )}
         </div>
@@ -559,6 +564,8 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
       {activeTab === 'emails' && <EmailList clientId={id} />}
       {activeTab === 'signatures' && <SignatureManager clientId={id} />}
       {activeTab === 'trust' && <TrustAccountPanel clientId={id} />}
+      {activeTab === 'ircc-forms' && <IRCCFormGenerator clientId={id} />}
+      {activeTab === 'audit' && <AuditLog clientId={id} />}
 
       {/* Modals */}
       {ocrData && <OcrConfirmModal data={ocrData} onConfirm={handleOcrConfirm} onClose={() => setOcrData(null)} />}

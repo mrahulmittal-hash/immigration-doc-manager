@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { api } from '../api';
-import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2, Wand2 } from 'lucide-react';
+import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2, Wand2, MessageSquare } from 'lucide-react';
 
 const STEPS = [
     { id: 'personal', title: 'Personal Information', Icon: User, color: '#4f46e5' },
@@ -54,21 +54,51 @@ function isFilled(val) {
     return String(val).trim() !== '';
 }
 
-/* ── Field Card (View + Edit + OCR comparison) ──────────── */
-function FieldCard({ label, value, fieldKey, type, verificationStatus, verificationReason, editing, onChange, ocrValue, ocrSource, onAcceptOcr }) {
+/* ── Field Card (View + Edit + OCR comparison + Verification) ──────────── */
+function FieldCard({ label, value, fieldKey, type, verificationStatus, verificationReason, editing, onChange, ocrValue, ocrSource, onAcceptOcr, fieldVerification, onVerifyField, canVerify }) {
     const filled = isFilled(value);
     const displayVal = filled
         ? (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value))
         : '—';
     const isMismatch = verificationStatus === 'mismatch';
     const hasOcr = ocrValue && ocrValue !== value;
+    const [showComment, setShowComment] = useState(false);
+    const [comment, setComment] = useState(fieldVerification?.comment || '');
+
+    const isVerified = fieldVerification?.verified === true;
+    const isFlagged = !isVerified && fieldVerification?.comment;
+
+    const borderColor = isVerified ? '#10b981' : isFlagged ? '#ef4444' : isMismatch ? 'var(--danger)' : undefined;
 
     return (
-        <div className={`pv-field-card ${isMismatch ? 'pv-field-mismatch' : filled ? 'pv-field-filled' : 'pv-field-empty'}`}>
+        <div className={`pv-field-card ${isMismatch ? 'pv-field-mismatch' : filled ? 'pv-field-filled' : 'pv-field-empty'}`}
+            style={borderColor ? { borderLeft: `3px solid ${borderColor}` } : undefined}>
             <div className="pv-field-label">
                 <span>{label}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                     {hasOcr && <span className="pv-field-dot ocr" title="OCR data available" />}
+                    {isVerified && <CheckCircle size={13} style={{ color: '#10b981' }} title="Verified" />}
+                    {isFlagged && <ShieldAlert size={13} style={{ color: '#ef4444' }} title={`Flagged: ${fieldVerification.comment}`} />}
+                    {canVerify && onVerifyField && (
+                        <button
+                            onClick={() => onVerifyField(fieldKey, !isVerified, comment)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+                            title={isVerified ? 'Unverify' : 'Verify'}
+                        >
+                            {isVerified
+                                ? <CheckCircle size={14} style={{ color: '#10b981' }} />
+                                : <Square size={14} style={{ color: 'var(--text-muted)' }} />}
+                        </button>
+                    )}
+                    {canVerify && (
+                        <button
+                            onClick={() => setShowComment(!showComment)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+                            title="Add comment"
+                        >
+                            <MessageSquare size={13} style={{ color: fieldVerification?.comment ? '#f59e0b' : 'var(--text-muted)' }} />
+                        </button>
+                    )}
                     <span className={`pv-field-dot ${isMismatch ? 'mismatch' : filled ? 'filled' : 'empty'}`} />
                 </div>
             </div>
@@ -84,6 +114,40 @@ function FieldCard({ label, value, fieldKey, type, verificationStatus, verificat
             ) : (
                 <div className={`pv-field-value ${!filled ? 'empty' : ''} ${type === 'textarea' ? 'textarea' : ''}`}>
                     {displayVal}
+                </div>
+            )}
+
+            {/* Verification comment */}
+            {(showComment || (fieldVerification?.comment && !canVerify)) && (
+                <div style={{ marginTop: 6, display: 'flex', gap: 4 }}>
+                    {canVerify ? (
+                        <>
+                            <input
+                                type="text"
+                                className="pv-field-input"
+                                value={comment}
+                                onChange={e => setComment(e.target.value)}
+                                placeholder="Add verification comment..."
+                                style={{ fontSize: 11, padding: '4px 8px' }}
+                                onBlur={() => {
+                                    if (comment !== (fieldVerification?.comment || '')) {
+                                        onVerifyField(fieldKey, isVerified, comment);
+                                    }
+                                }}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') {
+                                        onVerifyField(fieldKey, isVerified, comment);
+                                        setShowComment(false);
+                                    }
+                                }}
+                            />
+                        </>
+                    ) : (
+                        <div style={{ fontSize: 11, color: isFlagged ? '#ef4444' : '#6b7280', fontStyle: 'italic' }}>
+                            {fieldVerification?.verified_by_name && <strong>{fieldVerification.verified_by_name}: </strong>}
+                            {fieldVerification?.comment}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -191,7 +255,7 @@ function ArraySection({ sectionKey, rows, fields, label, optional, getVerifyProp
 /* ════════════════════════════════════════════════════════════
    Main PIFViewer Component
    ════════════════════════════════════════════════════════════ */
-export default function PIFViewer({ data, verificationResults, clientDocuments, clientId, onDataSaved }) {
+export default function PIFViewer({ data, verificationResults, clientDocuments, clientId, onDataSaved, userRole }) {
     const [currentStep, setCurrentStep] = useState(0);
     const [editing, setEditing] = useState(true);
     const [editData, setEditData] = useState(null);
@@ -202,6 +266,42 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     const [viewMode, setViewMode] = useState('form'); // 'form' | 'compare'
     const [autoFilling, setAutoFilling] = useState(false);
     const [autoFillResult, setAutoFillResult] = useState(null);
+    const [fieldVerifications, setFieldVerifications] = useState({});
+
+    const canVerify = !userRole || userRole === 'Admin' || userRole === 'Case Manager';
+
+    // Load field verifications
+    useEffect(() => {
+        if (clientId) {
+            api.getPIFVerifications(clientId).then(setFieldVerifications).catch(() => {});
+        }
+    }, [clientId]);
+
+    const handleVerifyField = async (fieldKey, verified, comment) => {
+        try {
+            await api.verifyPIFField(clientId, fieldKey, verified, comment);
+            setFieldVerifications(prev => ({
+                ...prev,
+                [fieldKey]: { ...prev[fieldKey], verified, comment, verified_by_name: 'You', verified_at: new Date().toISOString() }
+            }));
+        } catch (err) {
+            console.error('Failed to verify field:', err);
+        }
+    };
+
+    const handleVerifyAllInSection = async (sectionKey) => {
+        const fields = ALL_FIELDS[sectionKey];
+        if (!fields) return;
+        const bulkFields = fields.map(f => ({ field_key: `${sectionKey}.${f}`, verified: true, comment: '' }));
+        try {
+            await api.bulkVerifyPIFFields(clientId, bulkFields);
+            const updated = { ...fieldVerifications };
+            bulkFields.forEach(f => { updated[f.field_key] = { verified: true, comment: '', verified_by_name: 'You' }; });
+            setFieldVerifications(updated);
+        } catch (err) {
+            console.error('Failed to bulk verify:', err);
+        }
+    };
 
     // Initialize editData when data loads and editing is true by default
     useEffect(() => {
@@ -346,13 +446,28 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     }, [d]);
 
     const getVerifyProps = (sectionId, fieldKey, isArray = false, arrayIdx = 0) => {
-        if (!verificationResults || !verificationResults[sectionId]) return {};
-        const vr = verificationResults[sectionId];
-        if (vr.status !== 'mismatch') return {};
-        const searchKey = isArray ? `${fieldKey} (Row ${arrayIdx + 1})` : fieldKey;
-        const mismatch = vr.mismatches.find(m => m.field === searchKey);
-        if (mismatch) return { verificationStatus: 'mismatch', verificationReason: mismatch.reason };
-        return {};
+        const props = {};
+
+        // OCR mismatch verification
+        if (verificationResults && verificationResults[sectionId]) {
+            const vr = verificationResults[sectionId];
+            if (vr.status === 'mismatch') {
+                const searchKey = isArray ? `${fieldKey} (Row ${arrayIdx + 1})` : fieldKey;
+                const mismatch = vr.mismatches.find(m => m.field === searchKey);
+                if (mismatch) {
+                    props.verificationStatus = 'mismatch';
+                    props.verificationReason = mismatch.reason;
+                }
+            }
+        }
+
+        // Per-field verification status
+        const verifyKey = isArray ? `${sectionId}.${arrayIdx}.${fieldKey}` : `${sectionId}.${fieldKey}`;
+        props.fieldVerification = fieldVerifications[verifyKey] || null;
+        props.canVerify = canVerify;
+        props.onVerifyField = (fk, verified, comment) => handleVerifyField(verifyKey, verified, comment);
+
+        return props;
     };
 
     const sectionDocs = useMemo(() => {
@@ -579,6 +694,14 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         </div>
                     </div>
                     <div className="pv-main-header-right">
+                        {/* Verify All in Section Button */}
+                        {canVerify && ALL_FIELDS[step.id] && (
+                            <button className="pv-toolbar-btn" onClick={() => handleVerifyAllInSection(step.id)}
+                                style={{ color: '#10b981', borderColor: '#10b98130' }}
+                                title="Verify all fields in this section">
+                                <CheckCircle size={14} /> Verify All
+                            </button>
+                        )}
                         {/* Auto-fill Button */}
                         <button className="pv-toolbar-btn autofill" onClick={handleAutoFill} disabled={autoFilling} title="Auto-fill empty PIF fields from uploaded documents">
                             {autoFilling ? <Loader2 size={14} className="spin" /> : <Wand2 size={14} />}

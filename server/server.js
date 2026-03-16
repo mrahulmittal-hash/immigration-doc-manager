@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { initDatabase, prepareAll, prepareGet } = require('./database');
-const { requireAuth } = require('./middleware/auth');
+const { requireAuth, requireRole } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -34,27 +34,29 @@ const portalRouter = require('./routes/portal');
 const accountingRouter = require('./routes/accounting');
 const tasksRouter = require('./routes/tasks');
 const irccTemplatesRouter = require('./routes/ircc-templates');
+const auditRouter = require('./routes/audit');
 
 // Mount routes
-// Staff-facing routes protected by requireAuth (Cognito JWT or dev pass-through)
+// Staff-facing routes protected by requireAuth (JWT or dev pass-through)
 app.use('/api/clients', requireAuth, clientsRouter);
 app.use('/api', requireAuth, documentsRouter);
 app.use('/api', requireAuth, formsRouter);
 app.use('/api', requireAuth, clientDataRouter);
-app.use('/api/users', requireAuth, usersRouter);
+app.use('/api/users', usersRouter);  // login/refresh/register handled inside — protected routes use requireAuth internally
 app.use('/api', requireAuth, timelineRouter);
 app.use('/api', requireAuth, notesRouter);
 app.use('/api', requireAuth, irccRouter);
 app.use('/api', requireAuth, deadlinesRouter);
 app.use('/api', requireAuth, checklistsRouter);
 app.use('/api', requireAuth, emailsRouter);
-app.use('/api', requireAuth, irccFormsRouter);
+app.use('/api', requireAuth, requireRole('Admin', 'RCIC Consultant'), irccFormsRouter);
 app.use('/api', requireAuth, ocrRouter);
 app.use('/api', requireAuth, signaturesRouter);
 app.use('/api', requireAuth, accountingRouter);
 app.use('/api', requireAuth, tasksRouter);
 app.use('/api/ircc-templates', requireAuth, irccTemplatesRouter);
-// PUBLIC routes (magic-link flow — no Cognito login required for clients)
+app.use('/api', requireAuth, auditRouter);
+// PUBLIC routes (magic-link flow — no login required for clients)
 app.use('/api/pif', pifRouter);
 app.use('/api/sign', signRouter);
 app.use('/api/portal', portalRouter);

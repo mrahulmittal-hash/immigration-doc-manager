@@ -3,6 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { prepareAll, prepareGet, prepareRun } = require('../database');
 const { sendPIFEmail, sendPortalEmail } = require('../services/emailService');
+const { logBulkChanges, logAudit } = require('../middleware/audit');
 
 // GET /api/clients - List all clients
 router.get('/', async (req, res) => {
@@ -151,7 +152,7 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ error: 'Client not found' });
         }
 
-        const [documents, forms, clientData, filledForms, retainers, employerLinks, familyMembers, deadlines, checklistProgress] = await Promise.all([
+        const [documents, forms, clientData, filledForms, retainers, employerLinks, familyMembers, deadlines, checklistProgress, verificationSummary] = await Promise.all([
             prepareAll('SELECT * FROM documents WHERE client_id = ? ORDER BY uploaded_at DESC', client.id),
             prepareAll('SELECT * FROM forms WHERE client_id = ? ORDER BY uploaded_at DESC', client.id),
             prepareAll('SELECT * FROM client_data WHERE client_id = ? ORDER BY field_key', client.id),
@@ -166,6 +167,10 @@ router.get('/:id', async (req, res) => {
                         COUNT(CASE WHEN status = 'uploaded' THEN 1 END) as completed,
                         COUNT(CASE WHEN status = 'missing' THEN 1 END) as missing
                         FROM client_checklist_status WHERE client_id = ?`, client.id),
+            prepareGet(`SELECT COUNT(*) as total,
+                        COUNT(CASE WHEN verified = true THEN 1 END) as verified,
+                        COUNT(CASE WHEN verified = false AND comment IS NOT NULL AND comment != '' THEN 1 END) as flagged
+                        FROM pif_field_verifications WHERE client_id = ?`, client.id),
         ]);
 
         res.json({
@@ -175,6 +180,11 @@ router.get('/:id', async (req, res) => {
                 total: parseInt(checklistProgress?.total || 0),
                 completed: parseInt(checklistProgress?.completed || 0),
                 missing: parseInt(checklistProgress?.missing || 0),
+            },
+            verification_summary: {
+                total: parseInt(verificationSummary?.total || 0),
+                verified: parseInt(verificationSummary?.verified || 0),
+                flagged: parseInt(verificationSummary?.flagged || 0),
             },
         });
     } catch (err) {
@@ -213,6 +223,16 @@ router.put('/:id', async (req, res) => {
         );
 
         const updated = await prepareGet('SELECT * FROM clients WHERE id = ?', id);
+
+        // Audit log: track changed fields
+        const trackFields = ['first_name', 'last_name', 'email', 'phone', 'nationality', 'date_of_birth', 'passport_number', 'visa_type', 'status', 'notes'];
+        const changes = trackFields
+            .filter(f => String(existing[f] || '') !== String(updated[f] || ''))
+            .map(f => ({ fieldKey: f, oldValue: existing[f], newValue: updated[f] }));
+        if (changes.length > 0) {
+            await logBulkChanges(req, { clientId: id, entityType: 'client', entityId: id, action: 'update', changes });
+        }
+
         res.json(updated);
     } catch (err) {
         console.error('Error updating client:', err);
@@ -228,7 +248,10 @@ router.patch('/:id/stage', async (req, res) => {
     if (!validStages.includes(stage)) {
       return res.status(400).json({ error: 'Invalid stage' });
     }
-    await prepareRun('UPDATE clients SET pipeline_stage = ? WHERE id = ?', stage, parseInt(req.params.id));
+    const clientId = parseInt(req.params.id);
+    const old = await prepareGet('SELECT pipeline_stage FROM clients WHERE id = ?', clientId);
+    await prepareRun('UPDATE clients SET pipeline_stage = ? WHERE id = ?', stage, clientId);
+    await logAudit(req, { clientId, entityType: 'client', entityId: clientId, action: 'update', fieldKey: 'pipeline_stage', oldValue: old?.pipeline_stage, newValue: stage });
     res.json({ message: 'Stage updated' });
   } catch (err) {
     console.error('Error updating pipeline stage:', err);

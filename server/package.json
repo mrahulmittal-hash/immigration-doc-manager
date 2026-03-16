@@ -12,6 +12,7 @@
     "@aws-sdk/client-ses": "^3.1009.0",
     "@aws-sdk/s3-request-presigner": "^3.1009.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
+    "bcryptjs": "^3.0.3",
     "cheerio": "^1.2.0",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",

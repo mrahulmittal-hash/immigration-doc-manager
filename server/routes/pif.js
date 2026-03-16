@@ -504,6 +504,146 @@ router.post('/data/:clientId/autofill', async (req, res) => {
     }
 });
 
+// ═══════════════════════════════════════════════════════════════
+// Per-Field Verification Endpoints
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/pif/data/:clientId/verifications — Get all field verification records
+router.get('/data/:clientId/verifications', async (req, res) => {
+    try {
+        const clientId = parseInt(req.params.clientId);
+        const rows = await prepareAll(
+            `SELECT v.*, u.name as verified_by_name FROM pif_field_verifications v
+             LEFT JOIN users u ON u.id = v.verified_by
+             WHERE v.client_id = ?`,
+            clientId
+        );
+        // Return as object keyed by field_key
+        const verifications = {};
+        for (const row of rows) {
+            verifications[row.field_key] = row;
+        }
+        res.json(verifications);
+    } catch (err) {
+        console.error('Error fetching verifications:', err);
+        res.status(500).json({ error: 'Failed to fetch verifications' });
+    }
+});
+
+// PUT /api/pif/data/:clientId/verify-field — Verify/flag a single PIF field
+router.put('/data/:clientId/verify-field', async (req, res) => {
+    try {
+        const clientId = parseInt(req.params.clientId);
+        const { field_key, verified, comment } = req.body;
+        if (!field_key) return res.status(400).json({ error: 'field_key is required' });
+
+        const existing = await prepareGet(
+            'SELECT * FROM pif_field_verifications WHERE client_id = ? AND field_key = ?',
+            clientId, field_key
+        );
+
+        if (existing) {
+            await prepareRun(
+                `UPDATE pif_field_verifications SET verified = ?, comment = ?, verified_by = ?, verified_at = NOW()
+                 WHERE client_id = ? AND field_key = ?`,
+                verified !== undefined ? verified : existing.verified,
+                comment !== undefined ? comment : existing.comment,
+                req.user?.id || null,
+                clientId, field_key
+            );
+        } else {
+            await prepareRun(
+                `INSERT INTO pif_field_verifications (client_id, field_key, verified, comment, verified_by)
+                 VALUES (?, ?, ?, ?, ?)`,
+                clientId, field_key, verified || false, comment || null, req.user?.id || null
+            );
+        }
+
+        // Audit log
+        const { logAudit } = require('../middleware/audit');
+        await logAudit(req, {
+            clientId,
+            entityType: 'verification',
+            entityId: null,
+            action: verified ? 'verify' : 'flag',
+            fieldKey: field_key,
+            oldValue: existing ? String(existing.verified) : null,
+            newValue: String(verified || false),
+        });
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Error verifying field:', err);
+        res.status(500).json({ error: 'Failed to verify field' });
+    }
+});
+
+// PUT /api/pif/data/:clientId/verify-bulk — Bulk verify multiple fields
+router.put('/data/:clientId/verify-bulk', async (req, res) => {
+    try {
+        const clientId = parseInt(req.params.clientId);
+        const { fields } = req.body;
+        if (!Array.isArray(fields)) return res.status(400).json({ error: 'fields array is required' });
+
+        const { logAudit } = require('../middleware/audit');
+
+        for (const f of fields) {
+            const existing = await prepareGet(
+                'SELECT * FROM pif_field_verifications WHERE client_id = ? AND field_key = ?',
+                clientId, f.field_key
+            );
+            if (existing) {
+                await prepareRun(
+                    `UPDATE pif_field_verifications SET verified = ?, comment = ?, verified_by = ?, verified_at = NOW()
+                     WHERE client_id = ? AND field_key = ?`,
+                    f.verified !== undefined ? f.verified : existing.verified,
+                    f.comment !== undefined ? f.comment : existing.comment,
+                    req.user?.id || null,
+                    clientId, f.field_key
+                );
+            } else {
+                await prepareRun(
+                    `INSERT INTO pif_field_verifications (client_id, field_key, verified, comment, verified_by)
+                     VALUES (?, ?, ?, ?, ?)`,
+                    clientId, f.field_key, f.verified || false, f.comment || null, req.user?.id || null
+                );
+            }
+            await logAudit(req, {
+                clientId, entityType: 'verification', action: f.verified ? 'verify' : 'flag',
+                fieldKey: f.field_key, oldValue: existing ? String(existing.verified) : null, newValue: String(f.verified || false),
+            });
+        }
+
+        res.json({ success: true, count: fields.length });
+    } catch (err) {
+        console.error('Error bulk verifying fields:', err);
+        res.status(500).json({ error: 'Failed to bulk verify' });
+    }
+});
+
+// GET /api/pif/data/:clientId/verification-summary — Summary stats
+router.get('/data/:clientId/verification-summary', async (req, res) => {
+    try {
+        const clientId = parseInt(req.params.clientId);
+        const result = await prepareGet(`
+            SELECT COUNT(*) as total,
+                   COUNT(CASE WHEN verified = true THEN 1 END) as verified,
+                   COUNT(CASE WHEN verified = false AND comment IS NOT NULL AND comment != '' THEN 1 END) as flagged
+            FROM pif_field_verifications WHERE client_id = ?
+        `, clientId);
+
+        res.json({
+            total: parseInt(result?.total || 0),
+            verified: parseInt(result?.verified || 0),
+            flagged: parseInt(result?.flagged || 0),
+            unverified: parseInt(result?.total || 0) - parseInt(result?.verified || 0),
+        });
+    } catch (err) {
+        console.error('Error fetching verification summary:', err);
+        res.status(500).json({ error: 'Failed to fetch summary' });
+    }
+});
+
 // POST /api/pif/seed/:clientId — Seed comprehensive dummy PIF data for testing
 router.post('/seed/:clientId', async (req, res) => {
     try {

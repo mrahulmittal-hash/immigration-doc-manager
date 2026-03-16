@@ -1,101 +1,73 @@
 /**
- * authMiddleware.js — Cognito JWT validation middleware
+ * authMiddleware.js — JWT authentication middleware
  *
- * When COGNITO_USER_POOL_ID and COGNITO_CLIENT_ID are configured, validates
- * Bearer tokens against the Cognito JWKS endpoint.
- *
- * In local development (no Cognito config), the middleware passes through
- * all requests so the app keeps working without an AWS account.
- *
- * Usage:
- *   const { requireAuth, requireRole } = require('./middleware/auth');
- *   app.use('/api/clients', requireAuth, clientsRouter);
- *   app.use('/api/admin', requireAuth, requireRole('RCIC', 'CaseOfficer'), adminRouter);
+ * Validates Bearer tokens using a local JWT_SECRET.
+ * In local development (no JWT_SECRET), passes through with a real user from DB.
  */
 
 const jwt = require('jsonwebtoken');
-const jwksClient = require('jwks-rsa');
+const { prepareGet } = require('../database');
 
-const USER_POOL_ID    = process.env.COGNITO_USER_POOL_ID;
-const REGION          = process.env.AWS_REGION || 'ca-central-1';
-const CLIENT_ID       = process.env.COGNITO_CLIENT_ID;
+const JWT_SECRET = process.env.JWT_SECRET || null;
+const ACCESS_TOKEN_EXPIRY = '15m';
+const REFRESH_TOKEN_EXPIRY = '7d';
 
-function isCognitoEnabled() {
-    return !!(USER_POOL_ID && REGION && CLIENT_ID);
+function getSecret() {
+    return JWT_SECRET || 'dev-secret-do-not-use-in-production';
 }
 
-// Lazy-build JWKS client
-let _jwksClient = null;
-function getJwksClient() {
-    if (!_jwksClient) {
-        _jwksClient = jwksClient({
-            jwksUri: `https://cognito-idp.${REGION}.amazonaws.com/${USER_POOL_ID}/.well-known/jwks.json`,
-            cache: true,
-            cacheMaxEntries: 5,
-            cacheMaxAge: 10 * 60 * 1000, // 10 minutes
-        });
-    }
-    return _jwksClient;
-}
-
-function getKey(header, callback) {
-    getJwksClient().getSigningKey(header.kid, (err, key) => {
-        if (err) return callback(err);
-        callback(null, key.getPublicKey());
-    });
+/**
+ * Generate access and refresh tokens for a user
+ */
+function generateTokens(user) {
+    const payload = { id: user.id, email: user.email, role: user.role, name: user.name };
+    const accessToken = jwt.sign(payload, getSecret(), { expiresIn: ACCESS_TOKEN_EXPIRY });
+    const refreshToken = jwt.sign({ id: user.id, type: 'refresh' }, getSecret(), { expiresIn: REFRESH_TOKEN_EXPIRY });
+    return { accessToken, refreshToken };
 }
 
 /**
  * requireAuth — validates the Bearer JWT.
  * Attaches decoded payload to req.user.
- * Skips validation in dev mode (when Cognito is not configured).
+ * In dev mode (no JWT_SECRET), looks up a default user from DB.
  */
-function requireAuth(req, res, next) {
-    if (!isCognitoEnabled()) {
-        // Dev pass-through — attach a mock user so downstream code can rely on req.user
-        req.user = { sub: 'dev-user', 'cognito:groups': ['RCIC'] };
-        return next();
-    }
-
+async function requireAuth(req, res, next) {
     const authHeader = req.headers.authorization || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-    if (!token) {
-        return res.status(401).json({ error: 'Authorization token required' });
-    }
-
-    jwt.verify(token, getKey, {
-        algorithms: ['RS256'],
-        issuer: `https://cognito-idp.${REGION}.amazonaws.com/${USER_POOL_ID}`,
-        audience: CLIENT_ID,
-    }, (err, decoded) => {
-        if (err) {
-            console.error('JWT verification failed:', err.message);
+    if (token) {
+        try {
+            const decoded = jwt.verify(token, getSecret());
+            req.user = { id: decoded.id, email: decoded.email, role: decoded.role, name: decoded.name };
+            return next();
+        } catch (err) {
             return res.status(401).json({ error: 'Invalid or expired token' });
         }
-        req.user = decoded;
-        next();
-    });
+    }
+
+    // Dev pass-through: no token provided and no JWT_SECRET configured
+    if (!JWT_SECRET) {
+        const devUser = await prepareGet("SELECT id, name, email, role FROM users WHERE status = 'active' ORDER BY id ASC LIMIT 1");
+        req.user = devUser || { id: 1, email: 'dev@propagent.ca', role: 'Admin', name: 'Dev User' };
+        return next();
+    }
+
+    return res.status(401).json({ error: 'Authorization token required' });
 }
 
 /**
- * requireRole(...roles) — verifies that the authenticated user belongs to at
- * least one of the specified Cognito groups.
- *
- * Example: requireRole('RCIC', 'CaseOfficer')
+ * requireRole(...roles) — verifies that the authenticated user has one of the specified roles.
  */
 function requireRole(...roles) {
     return (req, res, next) => {
-        if (!isCognitoEnabled()) return next(); // Dev pass-through
-
-        const userGroups = req.user?.['cognito:groups'] || [];
-        const hasRole = roles.some(role => userGroups.includes(role));
-
-        if (!hasRole) {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+        if (roles.length > 0 && !roles.includes(req.user.role)) {
             return res.status(403).json({ error: `Access denied. Required roles: ${roles.join(', ')}` });
         }
         next();
     };
 }
 
-module.exports = { requireAuth, requireRole, isCognitoEnabled };
+module.exports = { requireAuth, requireRole, generateTokens, getSecret };

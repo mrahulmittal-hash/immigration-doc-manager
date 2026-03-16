@@ -1,22 +1,27 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { useAuth } from '../contexts/AuthContext';
+import { hasPermission } from '../constants/roles';
 import {
   Users, CheckCircle, Clock, FileText, Calendar, CreditCard,
   UserPlus, CheckSquare, ArrowRight, BarChart3, Newspaper, AlertTriangle,
   Activity, Globe, GitBranch, Briefcase, Cake, Award, Circle, Check,
-  ClipboardList, FolderOpen, Building2
+  ClipboardList, FolderOpen, Building2, Shield, Stamp
 } from 'lucide-react';
 
 const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
 
 export default function Dashboard() {
+  const { user } = useAuth();
+  const userRole = user?.role || 'Viewer';
   const [stats, setStats] = useState(null);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [irccUpdates, setIrccUpdates] = useState([]);
   const [deadlines, setDeadlines] = useState([]);
   const [todayData, setTodayData] = useState({ tasks: [], birthdays: [], anniversaries: [], deadlines: [] });
+  const [verificationQueue, setVerificationQueue] = useState([]);
 
   useEffect(() => {
     Promise.all([
@@ -35,6 +40,23 @@ export default function Dashboard() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Load verification queue for Case Managers and RCIC Consultants
+  useEffect(() => {
+    if (userRole === 'Case Manager' || userRole === 'RCIC Consultant' || userRole === 'Admin') {
+      api.getClients().then(allClients => {
+        Promise.all(
+          allClients.slice(0, 20).map(c =>
+            api.getPIFVerificationSummary(c.id)
+              .then(summary => ({ ...c, verification: summary }))
+              .catch(() => ({ ...c, verification: { total: 0, verified: 0, flagged: 0, unverified: 0 } }))
+          )
+        ).then(withVerification => {
+          setVerificationQueue(withVerification.filter(c => c.verification.total > 0));
+        });
+      }).catch(() => {});
+    }
+  }, [userRole]);
 
   if (loading) return <div className="spinner-container"><div className="spinner" /></div>;
 
@@ -69,8 +91,11 @@ export default function Dashboard() {
       <div style={{ marginBottom: 8 }}>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600 }}>{dateStr}</div>
         <h1 style={{ fontSize: 30, fontWeight: 800, color: 'var(--text-primary)', margin: '4px 0 0', letterSpacing: '-0.5px' }}>
-          {greeting}, RCIC!
+          {greeting}, {user?.name?.split(' ')[0] || 'RCIC'}!
         </h1>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+          <span style={{ background: 'var(--bg-secondary)', padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>{userRole}</span>
+        </div>
       </div>
 
       {/* Stats */}
@@ -228,6 +253,55 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* Verification Queue — Case Manager / RCIC / Admin */}
+      {verificationQueue.length > 0 && (userRole === 'Case Manager' || userRole === 'RCIC Consultant' || userRole === 'Admin') && (
+        <div style={{ marginTop: 24 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>
+            {userRole === 'Case Manager' ? 'PIF VERIFICATION QUEUE' : userRole === 'RCIC Consultant' ? 'CASES READY FOR FORMS' : 'VERIFICATION STATUS'}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+            {verificationQueue
+              .filter(c => userRole === 'RCIC Consultant' ? c.verification.verified > 0 : true)
+              .slice(0, 8)
+              .map(c => {
+                const v = c.verification;
+                const pct = v.total > 0 ? Math.round((v.verified / v.total) * 100) : 0;
+                const isReady = pct === 100;
+                return (
+                  <Link key={c.id} to={`/clients/${c.id}`} style={{
+                    display: 'block', padding: '14px 16px', borderRadius: 12,
+                    background: 'var(--bg-secondary)', border: `1px solid ${isReady ? '#10b98130' : 'var(--border-light)'}`,
+                    textDecoration: 'none', color: 'inherit',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{c.first_name} {c.last_name}</div>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10,
+                        background: isReady ? '#dcfce7' : v.flagged > 0 ? '#fef3c7' : '#f0f9ff',
+                        color: isReady ? '#059669' : v.flagged > 0 ? '#b45309' : '#3b82f6',
+                      }}>
+                        {isReady ? 'Ready' : v.flagged > 0 ? 'Flagged' : 'In Progress'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>{c.visa_type || 'No visa type'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'var(--border-light)', overflow: 'hidden' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', borderRadius: 2, background: isReady ? '#10b981' : '#3b82f6', transition: 'width 0.3s' }} />
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)' }}>{v.verified}/{v.total}</span>
+                    </div>
+                    {v.flagged > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: 10, color: '#f59e0b' }}>
+                        <Shield size={10} /> {v.flagged} flagged field{v.flagged !== 1 ? 's' : ''}
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {/* Bottom Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 28 }}>

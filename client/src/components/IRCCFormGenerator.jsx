@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
-import { FileText, Download, Zap, CheckCircle, AlertCircle, ExternalLink, Loader, Pencil } from 'lucide-react';
+import { FileText, Download, Zap, CheckCircle, AlertCircle, ExternalLink, Loader, Pencil, Shield, AlertTriangle } from 'lucide-react';
 import FormEditor from './FormEditor';
 
 const CATEGORY_COLORS = {
@@ -21,6 +21,8 @@ export default function IRCCFormGenerator({ clientId }) {
   const [results, setResults] = useState({});
   const [error, setError] = useState(null);
   const [editingFormId, setEditingFormId] = useState(null);
+  const [verificationBlock, setVerificationBlock] = useState(null);
+  const [verificationSummary, setVerificationSummary] = useState(null);
 
   const fetchForms = () => {
     api.getClientIRCCForms(clientId)
@@ -31,20 +33,36 @@ export default function IRCCFormGenerator({ clientId }) {
 
   useEffect(() => { fetchForms(); }, [clientId]);
 
+  useEffect(() => {
+    api.getPIFVerificationSummary(clientId)
+      .then(setVerificationSummary)
+      .catch(() => {});
+  }, [clientId]);
+
   const handleGenerate = async (formNumber) => {
     setGenerating(formNumber);
+    setVerificationBlock(null);
     try {
       const result = await api.generateIRCCForm(clientId, formNumber);
-      setResults(prev => ({ ...prev, [formNumber]: result }));
-      fetchForms();
+      if (result.error === 'verification_required') {
+        setVerificationBlock(result);
+      } else {
+        setResults(prev => ({ ...prev, [formNumber]: result }));
+        fetchForms();
+      }
     } catch (err) {
-      setResults(prev => ({ ...prev, [formNumber]: { error: err.message } }));
+      if (err.data?.error === 'verification_required') {
+        setVerificationBlock(err.data);
+      } else {
+        setResults(prev => ({ ...prev, [formNumber]: { error: err.message } }));
+      }
     }
     setGenerating(null);
   };
 
   const handleGenerateAll = async () => {
     setGeneratingAll(true);
+    setVerificationBlock(null);
     try {
       const result = await api.generateAllIRCCForms(clientId);
       const newResults = {};
@@ -54,7 +72,11 @@ export default function IRCCFormGenerator({ clientId }) {
       setResults(newResults);
       fetchForms();
     } catch (err) {
-      setError(err.message);
+      if (err.data?.error === 'verification_required') {
+        setVerificationBlock(err.data);
+      } else {
+        setError(err.message);
+      }
     }
     setGeneratingAll(false);
   };
@@ -106,6 +128,69 @@ export default function IRCCFormGenerator({ clientId }) {
           </div>
         </div>
       </div>
+
+      {/* Verification Status Banner */}
+      {verificationSummary && verificationSummary.total > 0 && (
+        <div className="card" style={{
+          marginBottom: 16, padding: '14px 20px',
+          background: verificationSummary.unverified > 0 ? 'rgba(245,158,11,0.06)' : 'rgba(16,185,129,0.06)',
+          border: `1px solid ${verificationSummary.unverified > 0 ? 'rgba(245,158,11,0.2)' : 'rgba(16,185,129,0.2)'}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {verificationSummary.unverified > 0 ? (
+              <AlertTriangle size={16} style={{ color: '#f59e0b' }} />
+            ) : (
+              <Shield size={16} style={{ color: '#10b981' }} />
+            )}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>
+                {verificationSummary.unverified > 0
+                  ? `${verificationSummary.unverified} unverified PIF field(s) — form generation blocked`
+                  : 'All PIF fields verified — ready to generate forms'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                {verificationSummary.verified}/{verificationSummary.total} verified
+                {verificationSummary.flagged > 0 && ` · ${verificationSummary.flagged} flagged`}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verification Block Warning */}
+      {verificationBlock && (
+        <div className="card" style={{
+          marginBottom: 16, padding: '16px 20px',
+          background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <AlertCircle size={18} style={{ color: '#ef4444', flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#ef4444', marginBottom: 4 }}>
+                Verification Required
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                {verificationBlock.message}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {verificationBlock.unverified_fields?.slice(0, 10).map(f => (
+                  <span key={f} style={{
+                    fontSize: 10, padding: '2px 8px', borderRadius: 4,
+                    background: 'rgba(239,68,68,0.1)', color: '#dc2626', fontWeight: 600,
+                  }}>
+                    {f}
+                  </span>
+                ))}
+                {verificationBlock.unverified_fields?.length > 10 && (
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 4px' }}>
+                    +{verificationBlock.unverified_fields.length - 10} more
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Form cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

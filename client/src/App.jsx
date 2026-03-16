@@ -4,11 +4,12 @@ import {
   LayoutDashboard, Users, GitBranch, CheckSquare, Calendar, CreditCard,
   Newspaper, UserCog, Mail, LogOut, ChevronDown, Settings, Briefcase
 } from 'lucide-react';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { canAccessRoute } from './constants/roles';
 import Dashboard from './pages/Dashboard';
 import Pipeline from './pages/Pipeline';
 import ClientList from './pages/ClientList';
 import CreateClient from './pages/CreateClient';
-// ClientDetail is now integrated into ClientList's 3-panel layout
 import Tasks from './pages/Tasks';
 import CalendarPage from './pages/CalendarPage';
 import TrustAccounting from './pages/TrustAccounting';
@@ -22,6 +23,7 @@ import EmailSettings from './pages/EmailSettings';
 import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
 import NotificationPanel from './components/NotificationPanel';
+import ProtectedRoute from './components/ProtectedRoute';
 import './index.css';
 
 const NAV_ITEMS = [
@@ -39,13 +41,17 @@ const MORE_ITEMS = [
   { to: '/settings/email', icon: Mail,      label: 'Email Settings' },
 ];
 
-function TopNav({ user, onLogout }) {
+function TopNav() {
+  const { user, logout } = useAuth();
   const [showMore, setShowMore] = useState(false);
   const location = useLocation();
   const initials = user?.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'DU';
 
-  // Close more menu on route change
   useEffect(() => { setShowMore(false); }, [location.pathname]);
+
+  const userRole = user?.role || 'Viewer';
+  const visibleNav = NAV_ITEMS.filter(item => canAccessRoute(userRole, item.to));
+  const visibleMore = MORE_ITEMS.filter(item => canAccessRoute(userRole, item.to));
 
   return (
     <nav className="topnav">
@@ -56,7 +62,7 @@ function TopNav({ user, onLogout }) {
       </NavLink>
 
       <div className="topnav-links">
-        {NAV_ITEMS.map(item => (
+        {visibleNav.map(item => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -67,39 +73,40 @@ function TopNav({ user, onLogout }) {
           </NavLink>
         ))}
 
-        {/* More Dropdown */}
-        <div style={{ position: 'relative' }}>
-          <button
-            className={`topnav-link ${MORE_ITEMS.some(m => location.pathname.startsWith(m.to)) ? 'active' : ''}`}
-            onClick={() => setShowMore(!showMore)}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-          >
-            <Settings size={16} /> More <ChevronDown size={14} />
-          </button>
-          {showMore && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMore(false)} />
-              <div style={{
-                position: 'absolute', top: '100%', left: 0, marginTop: 4,
-                background: '#fff', borderRadius: 12, padding: 6,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid var(--border)',
-                minWidth: 200, zIndex: 50,
-              }}>
-                {MORE_ITEMS.map(item => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) => `topnav-link ${isActive ? 'active' : ''}`}
-                    style={{ color: 'var(--text-secondary)', borderRadius: 8, padding: '10px 14px' }}
-                    onClick={() => setShowMore(false)}
-                  >
-                    <item.icon size={16} /> {item.label}
-                  </NavLink>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        {visibleMore.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`topnav-link ${visibleMore.some(m => location.pathname.startsWith(m.to)) ? 'active' : ''}`}
+              onClick={() => setShowMore(!showMore)}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
+              <Settings size={16} /> More <ChevronDown size={14} />
+            </button>
+            {showMore && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMore(false)} />
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, marginTop: 4,
+                  background: '#fff', borderRadius: 12, padding: 6,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid var(--border)',
+                  minWidth: 200, zIndex: 50,
+                }}>
+                  {visibleMore.map(item => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      className={({ isActive }) => `topnav-link ${isActive ? 'active' : ''}`}
+                      style={{ color: 'var(--text-secondary)', borderRadius: 8, padding: '10px 14px' }}
+                      onClick={() => setShowMore(false)}
+                    >
+                      <item.icon size={16} /> {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="topnav-right">
@@ -111,7 +118,7 @@ function TopNav({ user, onLogout }) {
             <div className="topnav-user-email">{user?.email || 'demo@propagent.ca'}</div>
           </div>
         </div>
-        <button className="topnav-logout" onClick={onLogout}>
+        <button className="topnav-logout" onClick={logout}>
           <LogOut size={14} />
         </button>
       </div>
@@ -119,10 +126,10 @@ function TopNav({ user, onLogout }) {
   );
 }
 
-function AdminShell({ children, user, onLogout }) {
+function AdminShell({ children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      <TopNav user={user} onLogout={onLogout} />
+      <TopNav />
       <div className="page-content page-enter">
         {children}
       </div>
@@ -130,58 +137,79 @@ function AdminShell({ children, user, onLogout }) {
   );
 }
 
-export default function App() {
-  const [user, setUser] = useState(null);
+function AppRoutes() {
+  const { user, loading, logout } = useAuth();
 
-  useEffect(() => {
-    const stored = localStorage.getItem('crm_user');
-    if (stored) {
-      setUser(JSON.parse(stored));
-    }
-  }, []);
-
-  const handleLogout = () => {
-    setUser(null);
-  };
+  if (loading) return <div className="spinner-container"><div className="spinner" /></div>;
 
   return (
-    <BrowserRouter>
-      <Routes>
-        {/* Public routes */}
-        <Route path="/login" element={
-          user ? <Navigate to="/" /> : <LoginPage onLogin={setUser} />
-        } />
-        <Route path="/pif/:token" element={<PIFForm />} />
-        <Route path="/sign/:token" element={<SignPage />} />
-        <Route path="/portal/:token/*" element={<ClientPortal />} />
+    <Routes>
+      {/* Public routes */}
+      <Route path="/login" element={
+        user ? <Navigate to="/" /> : <LoginPage />
+      } />
+      <Route path="/pif/:token" element={<PIFForm />} />
+      <Route path="/sign/:token" element={<SignPage />} />
+      <Route path="/portal/:token/*" element={<ClientPortal />} />
 
-        {/* Protected Admin shell */}
-        <Route path="/*" element={
-          user ? (
-            <SessionWrapper user={user} onLogout={handleLogout}>
-              <AdminShell user={user} onLogout={handleLogout}>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/pipeline" element={<Pipeline />} />
-                  <Route path="/clients" element={<ClientList />} />
-                  <Route path="/clients/new" element={<CreateClient />} />
-                  <Route path="/clients/:id" element={<ClientList />} />
-                  <Route path="/tasks" element={<Tasks />} />
-                  <Route path="/calendar" element={<CalendarPage />} />
-                  <Route path="/retainers" element={<TrustAccounting />} />
-                  <Route path="/users" element={<UsersPage />} />
-                  <Route path="/ircc-updates" element={<ImmigrationUpdates />} />
-                  <Route path="/ircc-templates" element={<IRCCTemplates />} />
-                  <Route path="/settings/email" element={<EmailSettings />} />
-                  <Route path="*" element={<Navigate to="/" />} />
-                </Routes>
-              </AdminShell>
-            </SessionWrapper>
-          ) : (
-            <Navigate to="/login" />
-          )
-        } />
-      </Routes>
+      {/* Protected Admin shell */}
+      <Route path="/*" element={
+        user ? (
+          <SessionWrapper user={user} onLogout={logout}>
+            <AdminShell>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/pipeline" element={
+                  <ProtectedRoute path="/pipeline"><Pipeline /></ProtectedRoute>
+                } />
+                <Route path="/clients" element={
+                  <ProtectedRoute path="/clients"><ClientList /></ProtectedRoute>
+                } />
+                <Route path="/clients/new" element={
+                  <ProtectedRoute path="/clients"><CreateClient /></ProtectedRoute>
+                } />
+                <Route path="/clients/:id" element={
+                  <ProtectedRoute path="/clients"><ClientList /></ProtectedRoute>
+                } />
+                <Route path="/tasks" element={
+                  <ProtectedRoute path="/tasks"><Tasks /></ProtectedRoute>
+                } />
+                <Route path="/calendar" element={
+                  <ProtectedRoute path="/calendar"><CalendarPage /></ProtectedRoute>
+                } />
+                <Route path="/retainers" element={
+                  <ProtectedRoute path="/retainers"><TrustAccounting /></ProtectedRoute>
+                } />
+                <Route path="/users" element={
+                  <ProtectedRoute roles={['Admin']}><UsersPage /></ProtectedRoute>
+                } />
+                <Route path="/ircc-updates" element={
+                  <ProtectedRoute path="/ircc-updates"><ImmigrationUpdates /></ProtectedRoute>
+                } />
+                <Route path="/ircc-templates" element={
+                  <ProtectedRoute path="/ircc-templates"><IRCCTemplates /></ProtectedRoute>
+                } />
+                <Route path="/settings/email" element={
+                  <ProtectedRoute path="/settings/email"><EmailSettings /></ProtectedRoute>
+                } />
+                <Route path="*" element={<Navigate to="/" />} />
+              </Routes>
+            </AdminShell>
+          </SessionWrapper>
+        ) : (
+          <Navigate to="/login" />
+        )
+      } />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
     </BrowserRouter>
   );
 }

@@ -106,14 +106,22 @@ async function initDatabase() {
     // Employee Management Tables
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id           SERIAL PRIMARY KEY,
-        name         TEXT NOT NULL,
-        email        TEXT NOT NULL UNIQUE,
-        role         TEXT DEFAULT 'Case Manager',
-        status       TEXT DEFAULT 'active',
-        created_at   TIMESTAMPTZ DEFAULT NOW()
+        id                    SERIAL PRIMARY KEY,
+        name                  TEXT NOT NULL,
+        email                 TEXT NOT NULL UNIQUE,
+        password_hash         TEXT,
+        role                  TEXT DEFAULT 'Case Manager',
+        status                TEXT DEFAULT 'active',
+        refresh_token         TEXT,
+        refresh_token_expires TIMESTAMPTZ,
+        created_at            TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+
+    // Add columns if they don't exist (for existing DBs)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS refresh_token TEXT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS refresh_token_expires TIMESTAMPTZ`);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS employee_sessions (
@@ -358,25 +366,31 @@ async function initDatabase() {
     `);
 
     // Seed default admin if none exists
+    const bcrypt = require('bcryptjs');
+    const defaultHash = await bcrypt.hash('password123', 10);
+
     const adminExists = await client.query("SELECT id FROM users WHERE email = 'rajinder@propagent.ca'");
     if (adminExists.rowCount === 0) {
       await client.query(`
-        INSERT INTO users (name, email, role, status) 
-        VALUES ('Rajinder Anand', 'rajinder@propagent.ca', 'Admin', 'active')
-      `);
+        INSERT INTO users (name, email, password_hash, role, status)
+        VALUES ('Rajinder Anand', 'rajinder@propagent.ca', $1, 'Admin', 'active')
+      `, [defaultHash]);
     }
 
     // Seed sample users to match the current mock UI
     const sarahExists = await client.query("SELECT id FROM users WHERE email = 'sarah@propagent.ca'");
     if (sarahExists.rowCount === 0) {
       await client.query(`
-        INSERT INTO users (name, email, role, status)
-        VALUES 
-        ('Sarah Kim', 'sarah@propagent.ca', 'Case Manager', 'active'),
-        ('Priya Patel', 'priya@propagent.ca', 'Case Manager', 'active'),
-        ('David Chen', 'david@propagent.ca', 'Viewer', 'inactive')
-      `);
+        INSERT INTO users (name, email, password_hash, role, status)
+        VALUES
+        ('Sarah Kim', 'sarah@propagent.ca', $1, 'Case Manager', 'active'),
+        ('Priya Patel', 'priya@propagent.ca', $1, 'RCIC Consultant', 'active'),
+        ('David Chen', 'david@propagent.ca', $1, 'Viewer', 'inactive')
+      `, [defaultHash]);
     }
+
+    // Update existing users without password_hash
+    await client.query(`UPDATE users SET password_hash = $1 WHERE password_hash IS NULL`, [defaultHash]);
 
     // Seed sample clients for demo purposes
     const clientsExist = await client.query("SELECT COUNT(*) as cnt FROM clients");
@@ -636,6 +650,39 @@ async function initDatabase() {
         file_size       BIGINT,
         uploaded_at     TIMESTAMPTZ DEFAULT NOW(),
         notes           TEXT
+      )
+    `);
+
+    // ── Audit Logs ─────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id          SERIAL PRIMARY KEY,
+        client_id   INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+        entity_type TEXT NOT NULL,
+        entity_id   INTEGER,
+        action      TEXT NOT NULL,
+        field_key   TEXT,
+        old_value   TEXT,
+        new_value   TEXT,
+        changed_by  INTEGER REFERENCES users(id),
+        changed_at  TIMESTAMPTZ DEFAULT NOW(),
+        ip_address  TEXT
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_client ON audit_logs(client_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_logs(entity_type, entity_id)`);
+
+    // ── PIF Field Verifications ──────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pif_field_verifications (
+        id          SERIAL PRIMARY KEY,
+        client_id   INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        field_key   TEXT NOT NULL,
+        verified    BOOLEAN DEFAULT FALSE,
+        comment     TEXT,
+        verified_by INTEGER REFERENCES users(id),
+        verified_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(client_id, field_key)
       )
     `);
 

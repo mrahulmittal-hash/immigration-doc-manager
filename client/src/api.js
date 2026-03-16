@@ -1,15 +1,59 @@
 const API_BASE = '/api';
 
+function getAuthHeaders() {
+    const token = localStorage.getItem('crm_access_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function refreshAccessToken() {
+    const refreshToken = localStorage.getItem('crm_refresh_token');
+    if (!refreshToken) return false;
+    try {
+        const res = await fetch(`${API_BASE}/users/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken }),
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        localStorage.setItem('crm_access_token', data.accessToken);
+        localStorage.setItem('crm_refresh_token', data.refreshToken);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 async function request(url, options = {}) {
-    const res = await fetch(`${API_BASE}${url}`, {
-        headers: { 'Content-Type': 'application/json', ...options.headers },
-        ...options,
-    });
+    const headers = { 'Content-Type': 'application/json', ...getAuthHeaders(), ...options.headers };
+    let res = await fetch(`${API_BASE}${url}`, { ...options, headers });
+
+    // On 401, try refreshing the token once
+    if (res.status === 401) {
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+            const retryHeaders = { 'Content-Type': 'application/json', ...getAuthHeaders(), ...options.headers };
+            res = await fetch(`${API_BASE}${url}`, { ...options, headers: retryHeaders });
+        } else {
+            localStorage.removeItem('crm_access_token');
+            localStorage.removeItem('crm_refresh_token');
+            localStorage.removeItem('crm_user');
+            window.location.href = '/login';
+            throw new Error('Session expired');
+        }
+    }
+
     if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(err.error || 'Request failed');
+        const error = new Error(err.error || 'Request failed');
+        error.data = err;
+        throw error;
     }
     return res.json();
+}
+
+function authenticatedFetch(url, options = {}) {
+    return fetch(url, { ...options, headers: { ...getAuthHeaders(), ...options.headers } });
 }
 
 export const api = {
@@ -28,7 +72,7 @@ export const api = {
         const formData = new FormData();
         files.forEach(f => formData.append('files', f));
         formData.append('category', category);
-        return fetch(`${API_BASE}/clients/${clientId}/documents`, {
+        return authenticatedFetch(`${API_BASE}/clients/${clientId}/documents`, {
             method: 'POST',
             body: formData,
         }).then(r => r.json());
@@ -44,7 +88,7 @@ export const api = {
         const formData = new FormData();
         files.forEach(f => formData.append('files', f));
         formData.append('form_name', formName);
-        return fetch(`${API_BASE}/clients/${clientId}/forms`, {
+        return authenticatedFetch(`${API_BASE}/clients/${clientId}/forms`, {
             method: 'POST',
             body: formData,
         }).then(r => r.json());
@@ -160,7 +204,7 @@ export const api = {
         formData.append('file', file);
         if (formName) formData.append('form_name', formName);
         if (visaType) formData.append('visa_type', visaType);
-        return fetch(`${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/upload`, {
+        return authenticatedFetch(`${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/upload`, {
             method: 'POST',
             body: formData,
         }).then(r => r.json());
@@ -173,7 +217,7 @@ export const api = {
     getIRCCTemplateFieldsForClient: (formNumber, clientId) => request(`/ircc-templates/${encodeURIComponent(formNumber)}/fields/${clientId}`),
     viewIRCCTemplate: (formNumber) => `${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/view`,
     fillIRCCTemplate: (formNumber, fields) => {
-        return fetch(`${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/fill`, {
+        return authenticatedFetch(`${API_BASE}/ircc-templates/${encodeURIComponent(formNumber)}/fill`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fields }),
@@ -182,4 +226,33 @@ export const api = {
             return r.blob();
         });
     },
+
+    // Auth
+    login: (email, password) => fetch(`${API_BASE}/users/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+    }).then(r => r.json().then(data => ({ ok: r.ok, ...data }))),
+
+    register: (data) => request('/users/register', { method: 'POST', body: JSON.stringify(data) }),
+
+    // PIF Verifications
+    getPIFVerifications: (clientId) => request(`/pif/data/${clientId}/verifications`),
+    verifyPIFField: (clientId, fieldKey, verified, comment) => request(`/pif/data/${clientId}/verify-field`, {
+        method: 'PUT', body: JSON.stringify({ field_key: fieldKey, verified, comment })
+    }),
+    bulkVerifyPIFFields: (clientId, fields) => request(`/pif/data/${clientId}/verify-bulk`, {
+        method: 'PUT', body: JSON.stringify({ fields })
+    }),
+    getPIFVerificationSummary: (clientId) => request(`/pif/data/${clientId}/verification-summary`),
+
+    // Audit
+    getAuditLog: (clientId, params = {}) => {
+        const qs = new URLSearchParams(params).toString();
+        return request(`/clients/${clientId}/audit${qs ? `?${qs}` : ''}`);
+    },
+    getRecentAudit: (limit = 20) => request(`/audit/recent?limit=${limit}`),
+
+    // Seed PIF data
+    seedPIFData: (clientId) => request(`/pif/seed/${clientId}`, { method: 'POST' }),
 };

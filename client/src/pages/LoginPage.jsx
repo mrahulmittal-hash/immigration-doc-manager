@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage() {
     const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const { login } = useAuth();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -14,20 +17,11 @@ export default function LoginPage({ onLogin }) {
         setLoading(true);
 
         try {
-            const res = await fetch('/api/users/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email })
-            });
-
-            const data = await res.json();
-
-            if (res.ok) {
-                localStorage.setItem('crm_user', JSON.stringify(data.user));
-                onLogin(data.user);
+            const result = await login(email, password);
+            if (result.success) {
                 navigate('/');
             } else {
-                setError(data.error || 'Login failed');
+                setError(result.error);
             }
         } catch (err) {
             setError('Failed to connect to server');
@@ -57,7 +51,7 @@ export default function LoginPage({ onLogin }) {
                     <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>Sign in to manage your practice</p>
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     {error && (
                         <div style={{
                             padding: '12px 16px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)',
@@ -74,7 +68,19 @@ export default function LoginPage({ onLogin }) {
                             className="form-input"
                             value={email}
                             onChange={e => setEmail(e.target.value)}
-                            placeholder="sarah@propagent.ca"
+                            placeholder="rajinder@propagent.ca"
+                            required
+                        />
+                    </div>
+
+                    <div className="form-group">
+                        <label className="form-label">Password</label>
+                        <input
+                            type="password"
+                            className="form-input"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            placeholder="Enter your password"
                             required
                         />
                     </div>
@@ -91,8 +97,17 @@ export default function LoginPage({ onLogin }) {
                         {loading ? 'Signing in...' : 'Sign In'}
                     </button>
 
-                    <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
-                        <p>For demo purposes, use <strong style={{ color: 'var(--text-secondary)' }}>sarah@propagent.ca</strong></p>
+                    <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+                        <p style={{ margin: '4px 0' }}>
+                            <strong style={{ color: 'var(--text-secondary)' }}>Admin:</strong> rajinder@propagent.ca
+                        </p>
+                        <p style={{ margin: '4px 0' }}>
+                            <strong style={{ color: 'var(--text-secondary)' }}>Case Manager:</strong> sarah@propagent.ca
+                        </p>
+                        <p style={{ margin: '4px 0' }}>
+                            <strong style={{ color: 'var(--text-secondary)' }}>RCIC:</strong> priya@propagent.ca
+                        </p>
+                        <p style={{ margin: '4px 0', color: 'var(--text-muted)' }}>Password: password123</p>
                     </div>
                 </form>
             </div>

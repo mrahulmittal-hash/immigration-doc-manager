@@ -117,8 +117,31 @@ router.get('/clients/:id/ircc-forms', async (req, res) => {
 // POST /clients/:id/ircc-forms/generate — download IRCC form template, fill with client data, save
 router.post('/clients/:id/ircc-forms/generate', async (req, res) => {
   try {
-    const { form_number } = req.body;
+    const { form_number, force } = req.body;
     const clientId = parseInt(req.params.id);
+
+    // Verification gate: check that PIF fields are verified before generating
+    const isAdmin = req.user?.role === 'Admin';
+    if (!force || !isAdmin) {
+      const verificationCheck = await prepareAll(
+        'SELECT field_key, verified FROM pif_field_verifications WHERE client_id = ?',
+        clientId
+      );
+      const totalFields = await prepareGet(
+        'SELECT COUNT(*) as total FROM pif_field_verifications WHERE client_id = ?',
+        clientId
+      );
+      const unverifiedFields = verificationCheck.filter(v => !v.verified);
+      if (unverifiedFields.length > 0 && verificationCheck.length > 0) {
+        return res.status(400).json({
+          error: 'verification_required',
+          message: `${unverifiedFields.length} field(s) are not yet verified. Verify all PIF fields before generating forms.`,
+          unverified_fields: unverifiedFields.map(f => f.field_key),
+          total: verificationCheck.length,
+          verified: verificationCheck.length - unverifiedFields.length,
+        });
+      }
+    }
 
     const { client, dataMap } = await buildFullClientDataMap(clientId);
     const visaType = client.visa_type || 'Express Entry';
@@ -218,6 +241,27 @@ router.post('/clients/:id/ircc-forms/generate', async (req, res) => {
 router.post('/clients/:id/ircc-forms/generate-all', async (req, res) => {
   try {
     const clientId = parseInt(req.params.id);
+    const { force } = req.body || {};
+
+    // Verification gate
+    const isAdmin = req.user?.role === 'Admin';
+    if (!force || !isAdmin) {
+      const verificationCheck = await prepareAll(
+        'SELECT field_key, verified FROM pif_field_verifications WHERE client_id = ?',
+        clientId
+      );
+      const unverifiedFields = verificationCheck.filter(v => !v.verified);
+      if (unverifiedFields.length > 0 && verificationCheck.length > 0) {
+        return res.status(400).json({
+          error: 'verification_required',
+          message: `${unverifiedFields.length} field(s) are not yet verified. Verify all PIF fields before generating forms.`,
+          unverified_fields: unverifiedFields.map(f => f.field_key),
+          total: verificationCheck.length,
+          verified: verificationCheck.length - unverifiedFields.length,
+        });
+      }
+    }
+
     const { client, dataMap } = await buildFullClientDataMap(clientId);
     const visaType = client.visa_type || 'Express Entry';
     const formTemplates = getFormsForVisaType(visaType);
