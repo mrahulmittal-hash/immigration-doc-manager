@@ -103,6 +103,10 @@ export const api = {
     generateIRCCForm: (clientId, formNumber) => request(`/clients/${clientId}/ircc-forms/generate`, { method: 'POST', body: JSON.stringify({ form_number: formNumber }) }),
     generateAllIRCCForms: (clientId) => request(`/clients/${clientId}/ircc-forms/generate-all`, { method: 'POST' }),
 
+    // Filled Form Data (view/edit)
+    getFilledFormData: (filledFormId) => request(`/ircc-forms/filled/${filledFormId}/data`),
+    updateFilledFormData: (filledFormId, fields) => request(`/ircc-forms/filled/${filledFormId}/data`, { method: 'PUT', body: JSON.stringify({ fields }) }),
+
     // IRCC Updates
     getIRCCUpdates: (category, limit) => request(`/ircc-updates?${category ? `category=${category}&` : ''}limit=${limit || 50}`),
     triggerIRCCScrape: () => request('/ircc-updates/scrape', { method: 'POST' }),
@@ -113,4 +117,38 @@ export const api = {
     verifyPIFData: (clientId) => request(`/pif/data/${clientId}/verify`, { method: 'POST' }),
     updatePIFData: (clientId, formData) => request(`/pif/data/${clientId}`, { method: 'PUT', body: JSON.stringify({ form_data: formData }) }),
     getPIFOcrData: (clientId) => request(`/pif/data/${clientId}/ocr`),
+
+    // OCR
+    ocrDocument: (docId) => request(`/documents/${docId}/ocr`, { method: 'POST' }),
+    confirmOcr: (docId, fields, updateClient) => request(`/documents/${docId}/ocr/confirm`, { method: 'POST', body: JSON.stringify({ fields, update_client: updateClient }) }),
+
+    // Signatures
+    getSignatures: (clientId) => request(`/clients/${clientId}/signatures`),
+    createSignatureRequest: (clientId, data) => request(`/clients/${clientId}/signatures`, { method: 'POST', body: JSON.stringify(data) }),
+    sendSignatureRequest: (clientId, sigId) => request(`/clients/${clientId}/signatures/${sigId}/send`, { method: 'POST' }),
+    deleteSignatureRequest: (sigId) => request(`/signatures/${sigId}`, { method: 'DELETE' }),
+
+    // Trust Accounting
+    getAccountingSummary: () => request('/accounting/summary'),
+    getClientTrust: (clientId) => request(`/clients/${clientId}/trust`),
+    depositToTrust: (clientId, data) => request(`/clients/${clientId}/trust/deposit`, { method: 'POST', body: JSON.stringify(data) }),
+    releaseFromTrust: (clientId, data) => request(`/clients/${clientId}/trust/release`, { method: 'POST', body: JSON.stringify(data) }),
+    refundFromTrust: (clientId, data) => request(`/clients/${clientId}/trust/refund`, { method: 'POST', body: JSON.stringify(data) }),
+    getClientInvoices: (clientId) => request(`/clients/${clientId}/invoices`),
+    createInvoice: (clientId, data) => request(`/clients/${clientId}/invoices`, { method: 'POST', body: JSON.stringify(data) }),
+    updateInvoice: (id, data) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    getClientMilestones: (clientId) => request(`/clients/${clientId}/milestones`),
+    createMilestones: (clientId, data) => request(`/clients/${clientId}/milestones`, { method: 'POST', body: JSON.stringify(data) }),
+    releaseMilestone: (milestoneId) => request(`/milestones/${milestoneId}/release`, { method: 'POST' }),
+
+    // Tasks
+    getTasks: (filter, category, clientId) => request(`/tasks?filter=${filter || ''}&category=${category || ''}${clientId ? `&client_id=${clientId}` : ''}`),
+    getTodayTasks: () => request('/tasks/today'),
+    createTask: (data) => request('/tasks', { method: 'POST', body: JSON.stringify(data) }),
+    updateTask: (id, data) => request(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    toggleTask: (id) => request(`/tasks/${id}/toggle`, { method: 'PATCH' }),
+    deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
+
+    // Dashboard
+    getDashboardToday: () => request('/dashboard/today'),
 };

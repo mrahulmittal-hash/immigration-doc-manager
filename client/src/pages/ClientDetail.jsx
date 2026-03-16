@@ -10,15 +10,33 @@ import DeadlineTracker from '../components/DeadlineTracker';
 import DocumentChecklist from '../components/DocumentChecklist';
 import EmailList from '../components/EmailList';
 import IRCCFormGenerator from '../components/IRCCFormGenerator';
-import { Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key, CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap, Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks, Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck } from 'lucide-react';
+import FormEditor from '../components/FormEditor';
+import WorkflowStages from '../components/WorkflowStages';
+import SignatureManager from '../components/SignatureManager';
+import TrustAccountPanel from '../components/TrustAccountPanel';
+import TaskPanel from '../components/TaskPanel';
+import OcrConfirmModal from '../components/OcrConfirmModal';
+import { Globe, Mail, Phone, Pencil, X, Send, ClipboardList, FileText, PenTool, Key, CheckCircle, Clock, Upload, Download, Search, BarChart3, Save, Plus, Zap, Trash2, Image, BookOpen, Cake, MessageSquare, CalendarClock, ListChecks, Inbox, Stamp, Shield, ShieldCheck, ShieldAlert, Calendar, UserCheck, ChevronDown, ChevronUp, ScanLine, Wallet, Link2, CheckSquare } from 'lucide-react';
 
 const VISA_COLORS = {
-  'Express Entry':        'badge-primary',
-  'Study Permit':         'badge-indigo',
-  'Work Permit (PGWP)':   'badge-teal',
-  'Spousal Sponsorship':  'badge-purple',
-  'PR Application':       'badge-success',
-  'Visitor Visa (TRV)':   'badge-warning',
+  'Express Entry':                   'badge-primary',
+  'Study Permit':                    'badge-indigo',
+  'Work Permit (PGWP)':             'badge-teal',
+  'Work Permit (LMIA)':             'badge-teal',
+  'Open Work Permit':                'badge-teal',
+  'Spousal Sponsorship':             'badge-purple',
+  'Parent/Grandparent Sponsorship':  'badge-purple',
+  'PR Application':                  'badge-success',
+  'PR Card Renewal':                 'badge-success',
+  'Provincial Nominee (PNP)':        'badge-primary',
+  'Atlantic Immigration (AIP)':      'badge-indigo',
+  'IEC (Working Holiday)':           'badge-teal',
+  'Visitor Visa (TRV)':             'badge-warning',
+  'Super Visa':                      'badge-warning',
+  'Citizenship Application':         'badge-success',
+  'LMIA Application':                'badge-gray',
+  'eTA':                             'badge-gray',
+  'Refugee Claim':                   'badge-danger',
 };
 
 const PIF_META = {
@@ -28,17 +46,17 @@ const PIF_META = {
 };
 
 const TABS = [
-  { id: 'timeline',  label: 'Timeline',      Icon: Clock },
-  { id: 'notes',     label: 'Notes',         Icon: MessageSquare },
-  { id: 'pif',       label: 'PIF Data',      Icon: ClipboardList },
-  { id: 'documents', label: 'Documents',     Icon: FileText },
-  { id: 'forms',     label: 'Forms',         Icon: PenTool },
-  { id: 'data',      label: 'Client Data',   Icon: Key },
-  { id: 'filled',    label: 'Filled Forms',  Icon: CheckCircle },
-  { id: 'deadlines', label: 'Deadlines',     Icon: CalendarClock },
-  { id: 'checklist', label: 'Doc Checklist', Icon: ListChecks },
-  { id: 'emails',    label: 'Emails',        Icon: Inbox },
-  { id: 'ircc-forms', label: 'IRCC Forms',  Icon: Stamp },
+  { id: 'timeline',    label: 'Timeline',         Icon: Clock },
+  { id: 'tasks',       label: 'Tasks',            Icon: CheckSquare },
+  { id: 'notes',       label: 'Notes',            Icon: MessageSquare },
+  { id: 'pif',         label: 'PIF Data',         Icon: ClipboardList },
+  { id: 'docs-forms',  label: 'Documents & Forms', Icon: FileText },
+  { id: 'signatures',  label: 'Signatures',       Icon: PenTool },
+  { id: 'trust',       label: 'Trust Account',    Icon: Wallet },
+  { id: 'data',        label: 'Client Data',      Icon: Key },
+  { id: 'deadlines',   label: 'Deadlines',        Icon: CalendarClock },
+  { id: 'checklist',   label: 'Doc Checklist',    Icon: ListChecks },
+  { id: 'emails',      label: 'Emails',           Icon: Inbox },
 ];
 
 const CATEGORIES = ['general','passport','identity','education','employment','financial','medical','letter','other'];
@@ -53,6 +71,7 @@ export default function ClientDetail() {
   const [processing, setProcessing] = useState(false);
   const [processingMsg, setProcessingMsg] = useState('');
   const [editing, setEditing] = useState(false);
+  const [editingName, setEditingName] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [docFiles, setDocFiles] = useState([]);
   const [formFiles, setFormFiles] = useState([]);
@@ -67,6 +86,9 @@ export default function ClientDetail() {
   const [sendingPif, setSendingPif] = useState(false);
   const [verificationResults, setVerificationResults] = useState(null);
   const [verifying, setVerifying] = useState(false);
+  const [ocrData, setOcrData] = useState(null);
+  const [ocrLoading, setOcrLoading] = useState(null); // doc id being processed
+  const [sendingPortal, setSendingPortal] = useState(false);
 
   const fetchClient = useCallback(async () => {
     try {
@@ -145,6 +167,15 @@ export default function ClientDetail() {
     try { const d = await api.getFormFields(formId); setFormFieldsData(d); setSelectedFormForMapping(formId); setShowFieldMapper(true); }
     catch { setToast({ message: 'Failed to load fields', type: 'error' }); }
   };
+  const handleSaveNameInline = async () => {
+    try {
+      await api.updateClient(id, { first_name: editForm.first_name, last_name: editForm.last_name });
+      setEditingName(false);
+      setToast({ message: 'Name updated!', type: 'success' });
+      fetchClient();
+    } catch (e) { setToast({ message: e.message, type: 'error' }); }
+  };
+
   const handleSaveEdit = async () => {
     setProcessing(true); setProcessingMsg('Saving…');
     try { await api.updateClient(id, editForm); setEditing(false); setToast({ message: 'Client updated!', type: 'success' }); fetchClient(); }
@@ -170,6 +201,41 @@ export default function ClientDetail() {
     setVerifying(false);
   };
 
+  const handleOcr = async (docId) => {
+    setOcrLoading(docId);
+    try {
+      const result = await api.ocrDocument(docId);
+      setOcrData({ ...result, docId });
+    } catch (e) {
+      setToast({ message: `OCR failed: ${e.message}`, type: 'error' });
+    }
+    setOcrLoading(null);
+  };
+
+  const handleOcrConfirm = async (fields, updateClient) => {
+    try {
+      await api.confirmOcr(ocrData.docId, fields, updateClient);
+      setToast({ message: `${Object.keys(fields).length} OCR fields saved`, type: 'success' });
+      setOcrData(null);
+      fetchClient();
+    } catch (e) {
+      setToast({ message: e.message, type: 'error' });
+    }
+  };
+
+  const handleSendPortal = async () => {
+    setSendingPortal(true);
+    try {
+      const res = await fetch(`/api/clients/${id}/send-portal`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setToast({ message: data.simulated ? 'Portal link logged to console' : `Portal link sent to ${client.email}!`, type: data.simulated ? 'info' : 'success' });
+    } catch (e) {
+      setToast({ message: e.message, type: 'error' });
+    }
+    setSendingPortal(false);
+  };
+
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'50vh' }}>
       <div className="spinner" />
@@ -191,7 +257,34 @@ export default function ClientDetail() {
         <div className="cd-hero-left">
           <div className="cd-avatar">{initials}</div>
           <div className="cd-hero-info">
-            <div className="cd-hero-name">{client.first_name} {client.last_name}</div>
+            {editingName ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="text" className="form-input" autoFocus
+                  value={editForm.first_name}
+                  onChange={e => setEditForm(p => ({ ...p, first_name: e.target.value }))}
+                  style={{ fontSize: 20, fontWeight: 800, padding: '4px 10px', width: 160 }}
+                  placeholder="First name"
+                />
+                <input
+                  type="text" className="form-input"
+                  value={editForm.last_name}
+                  onChange={e => setEditForm(p => ({ ...p, last_name: e.target.value }))}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSaveNameInline(); if (e.key === 'Escape') setEditingName(false); }}
+                  style={{ fontSize: 20, fontWeight: 800, padding: '4px 10px', width: 160 }}
+                  placeholder="Last name"
+                />
+                <button className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={handleSaveNameInline}><Save size={14} /> Save</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditingName(false)}><X size={14} /></button>
+              </div>
+            ) : (
+              <div className="cd-hero-name" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}
+                onClick={() => setEditingName(true)}
+                title="Click to edit name">
+                {client.first_name} {client.last_name}
+                <Pencil size={14} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+              </div>
+            )}
             <div className="cd-hero-meta">
               {client.nationality && <span style={{display:'inline-flex',alignItems:'center',gap:4}}><Globe size={14} /> {client.nationality}</span>}
               {client.email      && <span style={{display:'inline-flex',alignItems:'center',gap:4}}><Mail size={14} /> {client.email}</span>}
@@ -214,6 +307,9 @@ export default function ClientDetail() {
           </button>
           <button className="btn btn-primary" style={{display:'flex',alignItems:'center',gap:6}} onClick={handleSendPif} disabled={sendingPif || !client.email}>
             <Send size={14} /> {sendingPif ? 'Sending…' : client.pif_status === 'completed' ? 'Resend PIF' : 'Send PIF Form'}
+          </button>
+          <button className="btn btn-secondary" style={{display:'flex',alignItems:'center',gap:6}} onClick={handleSendPortal} disabled={sendingPortal || !client.email}>
+            <Link2 size={14} /> {sendingPortal ? 'Sending…' : 'Portal Link'}
           </button>
           {client.forms?.length > 0 && (
             <button className="btn btn-success" style={{display:'flex',alignItems:'center',gap:6}} onClick={handleFillAll}><Zap size={14} /> Auto-Fill All</button>
@@ -273,11 +369,16 @@ export default function ClientDetail() {
         </div>
       )}
 
+      {/* ── Workflow Stages ──────────────────────────────────── */}
+      <div className="card" style={{ padding: '20px 24px' }}>
+        <WorkflowStages client={client} />
+      </div>
+
       {/* ── Tabs ───────────────────────────────────────────── */}
       <div className="cd-tabs">
         {TABS.map(t => {
-          const count = t.id === 'documents' ? docCount : t.id === 'forms' ? formCount
-            : t.id === 'data' ? clientDataLocal.length : t.id === 'filled' ? (client.filled_forms?.length||0) : null;
+          const count = t.id === 'docs-forms' ? (docCount + formCount + (client.filled_forms?.length||0))
+            : t.id === 'data' ? clientDataLocal.length : null;
           return (
             <button key={t.id}
               className={`cd-tab ${activeTab === t.id ? 'active' : ''}`}
@@ -299,6 +400,9 @@ export default function ClientDetail() {
 
       {/* ── Timeline Tab ────────────────────────────────────── */}
       {activeTab === 'timeline' && <Timeline clientId={id} />}
+
+      {/* ── Tasks Tab ──────────────────────────────────────── */}
+      {activeTab === 'tasks' && <TaskPanel clientId={id} />}
 
       {/* ── Notes Tab ─────────────────────────────────────── */}
       {activeTab === 'notes' && <NotesPanel clientId={id} />}
@@ -378,146 +482,112 @@ export default function ClientDetail() {
         </div>
       )}
 
-      {/* ── Documents Tab ───────────────────────────────────── */}
-      {activeTab === 'documents' && (
-        <div>
-          <FileUpload onFiles={setDocFiles} label="Drop client documents here (passport, ID, letters, education, etc.)" />
-          {docFiles.length > 0 && (
-            <div className="cd-upload-row">
-              <select className="form-select" style={{width:180}} value={docCategory} onChange={e => setDocCategory(e.target.value)}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
-              </select>
-              <button className="btn btn-primary" style={{display:'flex',alignItems:'center',gap:6}} onClick={handleUploadDocs}><Upload size={14} /> Upload {docFiles.length} File(s)</button>
-            </div>
-          )}
+      {/* ── Documents & Forms Tab (Unified) ─────────────────── */}
+      {activeTab === 'docs-forms' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-          {docCount > 0 && (
-            <div className="cd-action-banner" style={{marginTop:20}}>
-              <div>
-                <div style={{fontWeight:700,fontSize:14,display:'flex',alignItems:'center',gap:6}}><BarChart3 size={16} /> Extract All Document Data</div>
-                <div style={{fontSize:12,color:'var(--text-muted)',marginTop:3}}>
-                  Analyse all PDFs and auto-populate client data fields.
+          {/* Section 1: IRCC Forms */}
+          <IRCCFormGenerator clientId={id} />
+
+          {/* Section 2: Client Documents */}
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FileText size={16} /> Client Documents
+            </div>
+            <FileUpload onFiles={setDocFiles} label="Drop client documents here (passport, ID, letters, education, etc.)" />
+            {docFiles.length > 0 && (
+              <div className="cd-upload-row">
+                <select className="form-select" style={{width:180}} value={docCategory} onChange={e => setDocCategory(e.target.value)}>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase()+c.slice(1)}</option>)}
+                </select>
+                <button className="btn btn-primary" style={{display:'flex',alignItems:'center',gap:6}} onClick={handleUploadDocs}><Upload size={14} /> Upload {docFiles.length} File(s)</button>
+              </div>
+            )}
+
+            {docCount > 0 && (
+              <div className="cd-action-banner" style={{marginTop:20}}>
+                <div>
+                  <div style={{fontWeight:700,fontSize:14,display:'flex',alignItems:'center',gap:6}}><BarChart3 size={16} /> Extract All Document Data</div>
+                  <div style={{fontSize:12,color:'var(--text-muted)',marginTop:3}}>Analyse all PDFs and auto-populate client data fields.</div>
                 </div>
+                <button className="btn btn-primary" style={{display:'flex',alignItems:'center',gap:6}} onClick={handleExtractAll}><Search size={14} /> Extract All Data</button>
               </div>
-              <button className="btn btn-primary" style={{display:'flex',alignItems:'center',gap:6}} onClick={handleExtractAll}><Search size={14} /> Extract All Data</button>
-            </div>
-          )}
+            )}
 
-          {extractionResults && (
-            <div className="card" style={{marginTop:16}}>
-              <div className="card-header">
-                <div className="card-title" style={{display:'flex',alignItems:'center',gap:6}}><BarChart3 size={14} /> Extraction Results</div>
-                <button className="btn btn-secondary btn-sm" onClick={() => setExtractionResults(null)}>Dismiss</button>
-              </div>
-              <div className="stats-grid" style={{marginBottom:12}}>
-                {[
-                  {label:'Total Docs', val: extractionResults.summary.total_documents},
-                  {label:'Text Extracted', val: extractionResults.summary.text_documents, color:'var(--accent-green)'},
-                  {label:'Image Only', val: extractionResults.summary.image_documents, color:'var(--accent-amber)'},
-                  {label:'Fields Found', val: extractionResults.summary.total_fields_extracted, color:'var(--primary)'},
-                ].map(s => (
-                  <div key={s.label} className="stat-card">
-                    <div className="stat-value" style={s.color?{color:s.color}:{}}>{s.val}</div>
-                    <div className="stat-label">{s.label}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="table-wrap" style={{maxHeight:200,overflowY:'auto'}}>
-                <table><tbody>
-                  {extractionResults.documents.map((d,i) => (
-                    <tr key={i}>
-                      <td style={{fontWeight:500}}>{d.original_name}</td>
-                      <td><span className={`badge ${d.status==='extracted'?'badge-success':d.status==='image_only'?'badge-warning':'badge-danger'}`}>
-                        {d.status==='extracted'?'Text':d.status==='image_only'?'Image':'Error'}
-                      </span></td>
-                      {d.fieldsExtracted>0 && <td><span className="badge badge-success">{d.fieldsExtracted} fields</span></td>}
-                    </tr>
-                  ))}
-                </tbody></table>
-              </div>
-            </div>
-          )}
-
-          {docCount > 0 && (
-            <div className="card" style={{marginTop:20}}>
-              <div className="card-header">
-                <div className="card-title" style={{display:'flex',alignItems:'center',gap:6}}><FileText size={14} /> Uploaded Documents</div>
-                <span className="badge badge-gray">{docCount} files</span>
-              </div>
-              <div className="table-wrap">
-                <table>
-                  <thead><tr><th>Document</th><th>Category</th><th>Size</th><th>Uploaded</th><th>Actions</th></tr></thead>
-                  <tbody>
-                    {client.documents.map(doc => (
-                      <tr key={doc.id}>
-                        <td>
-                          <div style={{display:'flex',alignItems:'center',gap:8}}>
-                            <span style={{display:'flex'}}>{doc.original_name.endsWith('.pdf')?<FileText size={18} />:<Image size={18} />}</span>
-                            <div>
-                              <div style={{fontWeight:600,fontSize:13}}>{doc.original_name}</div>
-                              <div style={{display:'flex',gap:5,marginTop:2}}>
-                                {doc.extracted_text && <span className="badge badge-success" style={{fontSize:10}}>Extracted</span>}
-                                {doc.source==='pif-upload' && <span className="badge badge-purple" style={{fontSize:10}}>Client Upload</span>}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td><span className="badge badge-indigo">{doc.category||'general'}</span></td>
-                        <td style={{color:'var(--text-muted)',fontSize:12}}>{(doc.file_size/1024).toFixed(0)} KB</td>
-                        <td style={{color:'var(--text-muted)',fontSize:12}}>{new Date(doc.uploaded_at).toLocaleDateString()}</td>
-                        <td>
-                          <div style={{display:'flex',gap:6}}>
-                            <a href={api.getDocumentDownloadUrl(doc.id)} className="btn btn-secondary btn-sm" style={{display:'flex',alignItems:'center'}} download><Download size={14} /></a>
-                            {doc.original_name.toLowerCase().endsWith('.pdf') && (
-                              <button className="btn btn-primary btn-sm" style={{display:'flex',alignItems:'center',gap:4}} onClick={() => handleExtract(doc.id)}><Search size={12} /> Extract</button>
-                            )}
-                            <button className="btn btn-danger btn-sm" style={{display:'flex',alignItems:'center'}} onClick={() => handleDeleteDoc(doc.id)}><X size={14} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Forms Tab ────────────────────────────────────────── */}
-      {activeTab === 'forms' && (
-        <div>
-          <FileUpload onFiles={setFormFiles} accept=".pdf" label="Drop blank fillable PDF forms here" />
-          {formFiles.length > 0 && (
-            <div style={{marginTop:12}}>
-              <button className="btn btn-primary" style={{display:'flex',alignItems:'center',gap:6}} onClick={handleUploadForms}><Upload size={14} /> Upload {formFiles.length} Form(s)</button>
-            </div>
-          )}
-
-          {formCount > 0 && (
-            <>
-              <div className="cd-action-banner cd-action-green" style={{marginTop:20}}>
-                <Zap size={14} /> <strong>Smart Fill:</strong>&nbsp;Clicking "Fill" will auto-extract data from all documents and populate the form.
-              </div>
+            {extractionResults && (
               <div className="card" style={{marginTop:16}}>
                 <div className="card-header">
-                  <div className="card-title" style={{display:'flex',alignItems:'center',gap:6}}><PenTool size={14} /> Uploaded Forms</div>
-                  <span className="badge badge-gray">{formCount} forms</span>
+                  <div className="card-title" style={{display:'flex',alignItems:'center',gap:6}}><BarChart3 size={14} /> Extraction Results</div>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setExtractionResults(null)}>Dismiss</button>
+                </div>
+                <div className="stats-grid" style={{marginBottom:12}}>
+                  {[
+                    {label:'Total Docs', val: extractionResults.summary.total_documents},
+                    {label:'Text Extracted', val: extractionResults.summary.text_documents, color:'var(--accent-green)'},
+                    {label:'Image Only', val: extractionResults.summary.image_documents, color:'var(--accent-amber)'},
+                    {label:'Fields Found', val: extractionResults.summary.total_fields_extracted, color:'var(--primary)'},
+                  ].map(s => (
+                    <div key={s.label} className="stat-card">
+                      <div className="stat-value" style={s.color?{color:s.color}:{}}>{s.val}</div>
+                      <div className="stat-label">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="table-wrap" style={{maxHeight:200,overflowY:'auto'}}>
+                  <table><tbody>
+                    {extractionResults.documents.map((d,i) => (
+                      <tr key={i}>
+                        <td style={{fontWeight:500}}>{d.original_name}</td>
+                        <td><span className={`badge ${d.status==='extracted'?'badge-success':d.status==='image_only'?'badge-warning':'badge-danger'}`}>
+                          {d.status==='extracted'?'Text':d.status==='image_only'?'Image':'Error'}
+                        </span></td>
+                        {d.fieldsExtracted>0 && <td><span className="badge badge-success">{d.fieldsExtracted} fields</span></td>}
+                      </tr>
+                    ))}
+                  </tbody></table>
+                </div>
+              </div>
+            )}
+
+            {docCount > 0 && (
+              <div className="card" style={{marginTop:20}}>
+                <div className="card-header">
+                  <div className="card-title" style={{display:'flex',alignItems:'center',gap:6}}><FileText size={14} /> Uploaded Documents</div>
+                  <span className="badge badge-gray">{docCount} files</span>
                 </div>
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>Form</th><th>Fields</th><th>Uploaded</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Document</th><th>Category</th><th>Size</th><th>Uploaded</th><th>Actions</th></tr></thead>
                     <tbody>
-                      {client.forms.map(form => (
-                        <tr key={form.id}>
-                          <td style={{fontWeight:600,display:'flex',alignItems:'center',gap:6}}><PenTool size={14} /> {form.original_name}</td>
-                          <td><span className="badge badge-purple">{form.field_count} fields</span></td>
-                          <td style={{color:'var(--text-muted)',fontSize:12}}>{new Date(form.uploaded_at).toLocaleDateString()}</td>
+                      {client.documents.map(doc => (
+                        <tr key={doc.id}>
+                          <td>
+                            <div style={{display:'flex',alignItems:'center',gap:8}}>
+                              <span style={{display:'flex'}}>{doc.original_name.endsWith('.pdf')?<FileText size={18} />:<Image size={18} />}</span>
+                              <div>
+                                <div style={{fontWeight:600,fontSize:13}}>{doc.original_name}</div>
+                                <div style={{display:'flex',gap:5,marginTop:2}}>
+                                  {doc.extracted_text && <span className="badge badge-success" style={{fontSize:10}}>Extracted</span>}
+                                  {doc.source==='pif-upload' && <span className="badge badge-purple" style={{fontSize:10}}>Client Upload</span>}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td><span className="badge badge-indigo">{doc.category||'general'}</span></td>
+                          <td style={{color:'var(--text-muted)',fontSize:12}}>{(doc.file_size/1024).toFixed(0)} KB</td>
+                          <td style={{color:'var(--text-muted)',fontSize:12}}>{new Date(doc.uploaded_at).toLocaleDateString()}</td>
                           <td>
                             <div style={{display:'flex',gap:6}}>
-                              <button className="btn btn-secondary btn-sm" style={{display:'flex',alignItems:'center',gap:4}} onClick={() => handleViewFields(form.id)}><Search size={12} /> Fields</button>
-                              <button className="btn btn-success btn-sm" style={{display:'flex',alignItems:'center',gap:4}} onClick={() => handleFillForm(form.id)}><Zap size={12} /> Fill</button>
-                              <button className="btn btn-danger btn-sm" style={{display:'flex',alignItems:'center'}} onClick={() => handleDeleteForm(form.id)}><X size={14} /></button>
+                              <a href={api.getDocumentDownloadUrl(doc.id)} className="btn btn-secondary btn-sm" style={{display:'flex',alignItems:'center'}} download><Download size={14} /></a>
+                              {doc.original_name.toLowerCase().endsWith('.pdf') && (
+                                <button className="btn btn-primary btn-sm" style={{display:'flex',alignItems:'center',gap:4}} onClick={() => handleExtract(doc.id)}><Search size={12} /> Extract</button>
+                              )}
+                              {/\.(png|jpg|jpeg|tiff|tif|bmp|webp)$/i.test(doc.original_name) && (
+                                <button className="btn btn-secondary btn-sm" style={{display:'flex',alignItems:'center',gap:4}} onClick={() => handleOcr(doc.id)} disabled={ocrLoading === doc.id}>
+                                  <ScanLine size={12} /> {ocrLoading === doc.id ? 'OCR…' : 'OCR'}
+                                </button>
+                              )}
+                              <button className="btn btn-danger btn-sm" style={{display:'flex',alignItems:'center'}} onClick={() => handleDeleteDoc(doc.id)}><X size={14} /></button>
                             </div>
                           </td>
                         </tr>
@@ -526,7 +596,97 @@ export default function ClientDetail() {
                   </table>
                 </div>
               </div>
-            </>
+            )}
+          </div>
+
+          {/* Section 3: Custom Forms (collapsible) */}
+          <div>
+            <div
+              style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+              onClick={() => setShowFieldMapper(prev => !prev && !formFieldsData ? false : prev)}
+            >
+              <PenTool size={16} /> Custom Forms Upload
+              {formCount > 0 && <span className="badge badge-gray" style={{ marginLeft: 8 }}>{formCount}</span>}
+            </div>
+            <FileUpload onFiles={setFormFiles} accept=".pdf" label="Drop blank fillable PDF forms here" />
+            {formFiles.length > 0 && (
+              <div style={{marginTop:12}}>
+                <button className="btn btn-primary" style={{display:'flex',alignItems:'center',gap:6}} onClick={handleUploadForms}><Upload size={14} /> Upload {formFiles.length} Form(s)</button>
+              </div>
+            )}
+            {formCount > 0 && (
+              <>
+                <div className="cd-action-banner cd-action-green" style={{marginTop:20}}>
+                  <Zap size={14} /> <strong>Smart Fill:</strong>&nbsp;Clicking "Fill" will auto-extract data from all documents and populate the form.
+                </div>
+                <div className="card" style={{marginTop:16}}>
+                  <div className="card-header">
+                    <div className="card-title" style={{display:'flex',alignItems:'center',gap:6}}><PenTool size={14} /> Uploaded Forms</div>
+                    <span className="badge badge-gray">{formCount} forms</span>
+                  </div>
+                  <div className="table-wrap">
+                    <table>
+                      <thead><tr><th>Form</th><th>Fields</th><th>Uploaded</th><th>Actions</th></tr></thead>
+                      <tbody>
+                        {client.forms.map(form => (
+                          <tr key={form.id}>
+                            <td style={{fontWeight:600,display:'flex',alignItems:'center',gap:6}}><PenTool size={14} /> {form.original_name}</td>
+                            <td><span className="badge badge-purple">{form.field_count} fields</span></td>
+                            <td style={{color:'var(--text-muted)',fontSize:12}}>{new Date(form.uploaded_at).toLocaleDateString()}</td>
+                            <td>
+                              <div style={{display:'flex',gap:6}}>
+                                <button className="btn btn-secondary btn-sm" style={{display:'flex',alignItems:'center',gap:4}} onClick={() => handleViewFields(form.id)}><Search size={12} /> Fields</button>
+                                <button className="btn btn-success btn-sm" style={{display:'flex',alignItems:'center',gap:4}} onClick={() => handleFillForm(form.id)}><Zap size={12} /> Fill</button>
+                                <button className="btn btn-danger btn-sm" style={{display:'flex',alignItems:'center'}} onClick={() => handleDeleteForm(form.id)}><X size={14} /></button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Section 4: All Filled Forms */}
+          {(client.filled_forms?.length > 0) && (
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <CheckCircle size={16} /> Completed Forms
+                <span className="badge badge-success" style={{ marginLeft: 4 }}>{client.filled_forms.length}</span>
+              </div>
+              <div className="card">
+                {client.filled_forms.map(ff => (
+                  <div key={ff.id} className="cd-filled-row">
+                    <div style={{display:'flex',alignItems:'center',gap:12}}>
+                      <div style={{width:40,height:40,borderRadius:8,background:'rgba(16,185,129,.12)',border:'1px solid rgba(16,185,129,.2)',display:'flex',alignItems:'center',justifyContent:'center',color:'#10b981'}}><CheckCircle size={20} /></div>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:13}}>{ff.original_form_name||'Filled Form'}</div>
+                        <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>Filled on {new Date(ff.filled_at).toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <div style={{display:'flex',gap:6}}>
+                      <button className="btn btn-secondary btn-sm" style={{display:'flex',alignItems:'center',gap:4}} onClick={() => setSelectedFormForMapping(ff.id)}>
+                        <Pencil size={12} /> Edit
+                      </button>
+                      <a href={api.getFilledFormDownloadUrl(ff.id)} className="btn btn-primary btn-sm" download style={{display:'flex',alignItems:'center',gap:4}}><Download size={14} /> Download</a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Form Editor for filled forms from the "Completed Forms" section */}
+          {selectedFormForMapping && typeof selectedFormForMapping === 'number' && !showFieldMapper && (
+            <FormEditor
+              filledFormId={selectedFormForMapping}
+              clientId={id}
+              onClose={() => setSelectedFormForMapping(null)}
+              onSaved={() => { setSelectedFormForMapping(null); fetchClient(); }}
+            />
           )}
         </div>
       )}
@@ -571,34 +731,6 @@ export default function ClientDetail() {
         </div>
       )}
 
-      {/* ── Filled Forms Tab ─────────────────────────────────── */}
-      {activeTab === 'filled' && (
-        <div>
-          {!client.filled_forms?.length ? (
-            <div className="card"><div className="empty">
-              <div className="empty-icon"><CheckCircle size={32} /></div>
-              <div className="empty-title">No filled forms yet</div>
-              <div className="empty-text">Upload blank forms, add client data, then click "Auto-Fill" to generate pre-filled PDFs.</div>
-            </div></div>
-          ) : (
-            <div className="card">
-              {client.filled_forms.map(ff => (
-                <div key={ff.id} className="cd-filled-row">
-                  <div style={{display:'flex',alignItems:'center',gap:12}}>
-                    <div style={{width:40,height:40,borderRadius:8,background:'rgba(16,185,129,.12)',border:'1px solid rgba(16,185,129,.2)',display:'flex',alignItems:'center',justifyContent:'center',color:'#10b981'}}><CheckCircle size={20} /></div>
-                    <div>
-                      <div style={{fontWeight:700,fontSize:13}}>{ff.original_form_name||'Filled Form'}</div>
-                      <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>Filled on {new Date(ff.filled_at).toLocaleString()}</div>
-                    </div>
-                  </div>
-                  <a href={api.getFilledFormDownloadUrl(ff.id)} className="btn btn-primary btn-sm" download style={{display:'flex',alignItems:'center',gap:4}}><Download size={14} /> Download</a>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ── Deadlines Tab ────────────────────────────────────── */}
       {activeTab === 'deadlines' && <DeadlineTracker clientId={id} />}
 
@@ -608,8 +740,20 @@ export default function ClientDetail() {
       {/* ── Emails Tab ────────────────────────────────────── */}
       {activeTab === 'emails' && <EmailList clientId={id} />}
 
-      {/* ── IRCC Forms Tab ────────────────────────────────── */}
-      {activeTab === 'ircc-forms' && <IRCCFormGenerator clientId={id} />}
+      {/* ── Signatures Tab ─────────────────────────────────── */}
+      {activeTab === 'signatures' && <SignatureManager clientId={id} />}
+
+      {/* ── Trust Account Tab ──────────────────────────────── */}
+      {activeTab === 'trust' && <TrustAccountPanel clientId={id} />}
+
+      {/* ── OCR Confirm Modal ──────────────────────────────── */}
+      {ocrData && (
+        <OcrConfirmModal
+          data={ocrData}
+          onConfirm={handleOcrConfirm}
+          onClose={() => setOcrData(null)}
+        />
+      )}
 
       {/* ── Field Mapper Modal ───────────────────────────────── */}
       {showFieldMapper && formFieldsData && (

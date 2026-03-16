@@ -206,6 +206,114 @@ async function initDatabase() {
     // Add pipeline_stage column to clients
     await client.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS pipeline_stage TEXT DEFAULT 'lead'`);
 
+    // Add data_map_json to filled_forms for form editor support
+    await client.query(`ALTER TABLE filled_forms ADD COLUMN IF NOT EXISTS data_map_json TEXT`);
+
+    // E-Signatures
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS signatures (
+        id              SERIAL PRIMARY KEY,
+        client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        document_type   TEXT NOT NULL,
+        document_name   TEXT,
+        signature_image TEXT,
+        signed_at       TIMESTAMPTZ,
+        status          TEXT DEFAULT 'pending',
+        sign_token      TEXT UNIQUE,
+        token_expires   TIMESTAMPTZ,
+        filled_form_id  INTEGER REFERENCES filled_forms(id) ON DELETE SET NULL,
+        signed_pdf_path TEXT,
+        ip_address      TEXT,
+        user_agent      TEXT,
+        requested_by    TEXT DEFAULT 'Admin',
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Trust Accounting
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS trust_accounts (
+        id          SERIAL PRIMARY KEY,
+        client_id   INTEGER NOT NULL UNIQUE REFERENCES clients(id) ON DELETE CASCADE,
+        balance     DECIMAL(12,2) DEFAULT 0.00,
+        created_at  TIMESTAMPTZ DEFAULT NOW(),
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS invoices (
+        id              SERIAL PRIMARY KEY,
+        client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        invoice_number  TEXT NOT NULL UNIQUE,
+        description     TEXT,
+        amount          DECIMAL(12,2) NOT NULL,
+        status          TEXT DEFAULT 'draft',
+        due_date        DATE,
+        paid_date       DATE,
+        created_at      TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id               SERIAL PRIMARY KEY,
+        client_id        INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+        invoice_id       INTEGER REFERENCES invoices(id) ON DELETE SET NULL,
+        type             TEXT NOT NULL,
+        amount           DECIMAL(12,2) NOT NULL,
+        description      TEXT,
+        reference_number TEXT,
+        pipeline_stage   TEXT,
+        created_by       TEXT DEFAULT 'Admin',
+        created_at       TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS milestone_releases (
+        id             SERIAL PRIMARY KEY,
+        client_id      INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        pipeline_stage TEXT NOT NULL,
+        amount         DECIMAL(12,2) NOT NULL,
+        percentage     DECIMAL(5,2),
+        status         TEXT DEFAULT 'pending',
+        released_at    TIMESTAMPTZ,
+        transaction_id INTEGER REFERENCES transactions(id),
+        created_at     TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS operating_accounts (
+        id          SERIAL PRIMARY KEY,
+        balance     DECIMAL(12,2) DEFAULT 0.00,
+        updated_at  TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Seed single operating account row
+    await client.query(`
+      INSERT INTO operating_accounts (id, balance) VALUES (1, 0.00)
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Tasks
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id           SERIAL PRIMARY KEY,
+        client_id    INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+        title        TEXT NOT NULL,
+        priority     TEXT DEFAULT 'medium',
+        category     TEXT DEFAULT 'Other',
+        due_date     DATE,
+        done         BOOLEAN DEFAULT FALSE,
+        created_by   TEXT,
+        created_at   TIMESTAMPTZ DEFAULT NOW(),
+        completed_at TIMESTAMPTZ
+      )
+    `);
+
     // Email Integration
     await client.query(`
       CREATE TABLE IF NOT EXISTS email_settings (

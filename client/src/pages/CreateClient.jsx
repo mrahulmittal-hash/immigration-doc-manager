@@ -5,9 +5,10 @@ import { AlertTriangle, Check } from 'lucide-react';
 
 const VISA_TYPES = [
   'Express Entry', 'Study Permit', 'Work Permit (PGWP)', 'Work Permit (LMIA)',
-  'Spousal Sponsorship', 'Parent/Grandparent Sponsorship', 'Visitor Visa (TRV)',
-  'Super Visa', 'PR Application', 'Citizenship Application',
-  'LMIA Application', 'Refugee Claim', 'Other'
+  'Open Work Permit', 'Spousal Sponsorship', 'Parent/Grandparent Sponsorship',
+  'Visitor Visa (TRV)', 'Super Visa', 'PR Application', 'PR Card Renewal',
+  'Provincial Nominee (PNP)', 'Atlantic Immigration (AIP)', 'IEC (Working Holiday)',
+  'Citizenship Application', 'LMIA Application', 'eTA', 'Refugee Claim', 'Other'
 ];
 
 export default function CreateClient() {

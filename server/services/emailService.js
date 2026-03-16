@@ -164,4 +164,78 @@ async function sendViaGmail(toAddress, subject, htmlBody, formUrl, clientName) {
     return { success: true, transport: 'gmail', messageId: info.messageId, formUrl };
 }
 
-module.exports = { sendPIFEmail };
+// -----------------------------------------------------------------------
+// Portal Link Email
+// -----------------------------------------------------------------------
+async function sendPortalEmail(clientEmail, clientName, formToken, serviceType) {
+    const portalUrl = `${FRONTEND_URL}/portal/${formToken}`;
+    const subject = `Your Client Portal — PropAgent`;
+    const htmlBody = `<!DOCTYPE html>
+    <html><head><meta charset="utf-8"></head>
+    <body style="margin:0; padding:0; font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5;">
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%); border-radius: 16px 16px 0 0; padding: 40px 30px; text-align: center;">
+          <h1 style="color: #fff; margin: 0; font-size: 28px;">🌏 PropAgent</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 14px;">RCIC Immigration Services</p>
+        </div>
+        <div style="background: #fff; padding: 40px 30px; border: 1px solid #e2e8f0; border-top: 0;">
+          <h2 style="color: #1a1a2e; margin: 0 0 16px;">Hello ${clientName},</h2>
+          <p style="color: #475569; font-size: 15px; line-height: 1.7;">
+            Your client portal is ready! Use it to track your <strong>${serviceType || 'immigration'}</strong> application,
+            upload required documents, and view your progress.
+          </p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${portalUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 16px;">
+              Open My Portal
+            </a>
+          </div>
+          <p style="color: #94a3b8; font-size: 13px;">This link is unique to you — please do not share it.</p>
+        </div>
+      </div>
+    </body></html>`;
+
+    if (isSESEnabled()) {
+        return await sendViaSES(clientEmail, subject, htmlBody, portalUrl);
+    }
+    return await sendViaGmail(clientEmail, subject, htmlBody, portalUrl, clientName);
+}
+
+// -----------------------------------------------------------------------
+// Signature Request Email
+// -----------------------------------------------------------------------
+async function sendSignatureRequestEmail(clientEmail, clientName, signToken, documentName) {
+    const signUrl = `${FRONTEND_URL}/sign/${signToken}`;
+    const subject = `Signature Required: ${documentName} — PropAgent`;
+    const htmlBody = `<!DOCTYPE html>
+    <html><head><meta charset="utf-8"></head>
+    <body style="margin:0; padding:0; font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5;">
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%); border-radius: 16px 16px 0 0; padding: 40px 30px; text-align: center;">
+          <h1 style="color: #fff; margin: 0; font-size: 28px;">🌏 PropAgent</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 14px;">RCIC Immigration Services</p>
+        </div>
+        <div style="background: #fff; padding: 40px 30px; border: 1px solid #e2e8f0; border-top: 0;">
+          <h2 style="color: #1a1a2e; margin: 0 0 16px;">Hello ${clientName},</h2>
+          <p style="color: #475569; font-size: 15px; line-height: 1.7;">
+            Your signature is required on the following document:
+          </p>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
+            <p style="font-size: 18px; font-weight: 700; color: #1a1a2e; margin: 0;">📄 ${documentName}</p>
+          </div>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${signUrl}" style="display: inline-block; background: linear-gradient(135deg, #10b981, #059669); color: #fff; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 700; font-size: 16px;">
+              Sign Document
+            </a>
+          </div>
+          <p style="color: #94a3b8; font-size: 13px;">This link expires in 7 days. Do not share it.</p>
+        </div>
+      </div>
+    </body></html>`;
+
+    if (isSESEnabled()) {
+        return await sendViaSES(clientEmail, subject, htmlBody, signUrl);
+    }
+    return await sendViaGmail(clientEmail, subject, htmlBody, signUrl, clientName);
+}
+
+module.exports = { sendPIFEmail, sendPortalEmail, sendSignatureRequestEmail };

@@ -27,6 +27,12 @@ const deadlinesRouter = require('./routes/deadlines');
 const checklistsRouter = require('./routes/checklists');
 const emailsRouter = require('./routes/emails');
 const irccFormsRouter = require('./routes/irccForms');
+const ocrRouter = require('./routes/ocr');
+const signaturesRouter = require('./routes/signatures');
+const signRouter = require('./routes/sign');
+const portalRouter = require('./routes/portal');
+const accountingRouter = require('./routes/accounting');
+const tasksRouter = require('./routes/tasks');
 
 // Mount routes
 // Staff-facing routes protected by requireAuth (Cognito JWT or dev pass-through)
@@ -42,8 +48,14 @@ app.use('/api', requireAuth, deadlinesRouter);
 app.use('/api', requireAuth, checklistsRouter);
 app.use('/api', requireAuth, emailsRouter);
 app.use('/api', requireAuth, irccFormsRouter);
-// PIF routes are PUBLIC (magic-link flow — no Cognito login required for clients)
+app.use('/api', requireAuth, ocrRouter);
+app.use('/api', requireAuth, signaturesRouter);
+app.use('/api', requireAuth, accountingRouter);
+app.use('/api', requireAuth, tasksRouter);
+// PUBLIC routes (magic-link flow — no Cognito login required for clients)
 app.use('/api/pif', pifRouter);
+app.use('/api/sign', signRouter);
+app.use('/api/portal', portalRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api';
-import { FileText, Download, Zap, CheckCircle, AlertCircle, ExternalLink, Loader } from 'lucide-react';
+import { FileText, Download, Zap, CheckCircle, AlertCircle, ExternalLink, Loader, Pencil } from 'lucide-react';
+import FormEditor from './FormEditor';
 
 const CATEGORY_COLORS = {
   primary: { bg: 'rgba(59,130,246,.1)', color: '#3b82f6', border: 'rgba(59,130,246,.2)' },
@@ -19,6 +20,7 @@ export default function IRCCFormGenerator({ clientId }) {
   const [generatingAll, setGeneratingAll] = useState(false);
   const [results, setResults] = useState({});
   const [error, setError] = useState(null);
+  const [editingFormId, setEditingFormId] = useState(null);
 
   const fetchForms = () => {
     api.getClientIRCCForms(clientId)
@@ -112,6 +114,8 @@ export default function IRCCFormGenerator({ clientId }) {
           const result = results[form.form_number];
           const isGenerating = generating === form.form_number;
           const isCompleted = form.already_filled || result?.download_url;
+          const filledFormId = result?.id || form.filled_form_id;
+          const downloadUrl = result?.download_url || form.download_url;
 
           return (
             <div key={form.form_number} className="card" style={{
@@ -166,8 +170,14 @@ export default function IRCCFormGenerator({ clientId }) {
                       <ExternalLink size={12} /> Template
                     </a>
                   )}
-                  {result?.download_url ? (
-                    <a href={result.download_url} className="btn btn-success btn-sm" download
+                  {isCompleted && filledFormId && (
+                    <button className="btn btn-secondary btn-sm" onClick={() => setEditingFormId(filledFormId)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Pencil size={12} /> Edit
+                    </button>
+                  )}
+                  {downloadUrl ? (
+                    <a href={downloadUrl} className="btn btn-success btn-sm" download
                       style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <Download size={12} /> Download
                     </a>
@@ -185,6 +195,16 @@ export default function IRCCFormGenerator({ clientId }) {
           );
         })}
       </div>
+
+      {/* Form Editor Modal */}
+      {editingFormId && (
+        <FormEditor
+          filledFormId={editingFormId}
+          clientId={clientId}
+          onClose={() => setEditingFormId(null)}
+          onSaved={() => { fetchForms(); setEditingFormId(null); }}
+        />
+      )}
     </div>
   );
 }

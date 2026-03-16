@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { prepareAll, prepareGet, prepareRun } = require('../database');
-const { sendPIFEmail } = require('../services/emailService');
+const { sendPIFEmail, sendPortalEmail } = require('../services/emailService');
 
 // GET /api/clients - List all clients
 router.get('/', async (req, res) => {
@@ -97,6 +97,37 @@ router.post('/:id/send-pif', async (req, res) => {
     } catch (err) {
         console.error('Error sending PIF email:', err);
         res.status(500).json({ error: 'Failed to send PIF email: ' + err.message });
+    }
+});
+
+// POST /api/clients/:id/send-portal - Send client portal link
+router.post('/:id/send-portal', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const client = await prepareGet('SELECT * FROM clients WHERE id = ?', id);
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+        if (!client.email) return res.status(400).json({ error: 'Client has no email address' });
+
+        let token = client.form_token;
+        if (!token) {
+            token = uuidv4();
+            await prepareRun('UPDATE clients SET form_token = ? WHERE id = ?', token, id);
+        }
+
+        const clientName = `${client.first_name} ${client.last_name}`;
+        const result = await sendPortalEmail(client.email, clientName, token, client.visa_type || 'Immigration Service');
+
+        // Timeline event
+        await prepareRun(
+            `INSERT INTO client_timeline (client_id, event_type, title, description, created_by)
+             VALUES (?, 'portal_sent', 'Portal link sent', ?, 'Admin')`,
+            id, `Portal link sent to ${client.email}`
+        );
+
+        res.json({ success: true, ...result });
+    } catch (err) {
+        console.error('Error sending portal email:', err);
+        res.status(500).json({ error: 'Failed to send portal email: ' + err.message });
     }
 });
 

@@ -21,7 +21,7 @@ const navItems = [
   {
     section: 'Finance',
     links: [
-      { to: '/retainers', icon: CreditCard, label: 'Retainers' },
+      { to: '/retainers', icon: CreditCard, label: 'Trust Accounting' },
     ]
   },
   {

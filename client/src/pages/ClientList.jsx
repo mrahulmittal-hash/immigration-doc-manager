@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
-import { Search, Users, Trash2, CheckCircle, Mail, Clock, Globe } from 'lucide-react';
+import { Search, Users, Trash2, CheckCircle, Mail, Clock, Globe, Stamp } from 'lucide-react';
+
+const PIPELINE_STAGES = [
+  { id: 'lead',            label: 'Lead',            color: '#656d76' },
+  { id: 'consultation',    label: 'Consultation',    color: '#3b82f6' },
+  { id: 'retainer_signed', label: 'Retainer',        color: '#8b5cf6' },
+  { id: 'in_progress',     label: 'In Progress',     color: '#f59e0b' },
+  { id: 'submitted',       label: 'Submitted',       color: '#ec4899' },
+  { id: 'approved',        label: 'Approved',        color: '#10b981' },
+];
 
 const STATUS_OPTS = ['all', 'active', 'inactive'];
 const PIF_OPTS   = ['all', 'pending', 'sent', 'completed'];
@@ -91,14 +100,12 @@ export default function ClientList() {
                   <th style={{ padding: '16px 20px' }}>Client Name</th>
                   <th style={{ padding: '16px 20px' }}>Contact Info</th>
                   <th style={{ padding: '16px 20px' }}>Application</th>
-                  <th style={{ padding: '16px 20px' }}>PIF Status</th>
-                  <th style={{ padding: '16px 20px' }}>Account</th>
+                  <th style={{ padding: '16px 20px' }}>Workflow Stage</th>
                   <th style={{ padding: '16px 20px', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(c => {
-                  const PifIcon = pifIcon[c.pif_status] || Clock;
                   return (
                   <tr key={c.id}>
                     <td style={{ padding: '16px 20px' }}>
@@ -132,17 +139,29 @@ export default function ClientList() {
                       ) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
                     </td>
                     <td style={{ padding: '16px 20px' }}>
-                      <span className={`badge ${pifBadge[c.pif_status] || 'badge-gray'}`} style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
-                        <PifIcon size={12} /> {c.pif_status === 'completed' ? 'Completed' : c.pif_status === 'sent' ? 'Sent' : 'Pending'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '16px 20px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: c.status === 'active' ? '#10b981' : '#64748b' }} />
-                        <span style={{ fontSize: 13, color: c.status === 'active' ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                          {c.status.charAt(0).toUpperCase() + c.status.slice(1)}
-                        </span>
-                      </div>
+                      {(() => {
+                        const currentStage = c.pipeline_stage || 'lead';
+                        const currentIdx = PIPELINE_STAGES.findIndex(s => s.id === currentStage);
+                        const stageInfo = PIPELINE_STAGES[currentIdx] || PIPELINE_STAGES[0];
+                        return (
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: stageInfo.color, marginBottom: 6 }}>
+                              {stageInfo.label}
+                            </div>
+                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                              {PIPELINE_STAGES.map((stage, idx) => (
+                                <div key={stage.id} style={{
+                                  width: 10, height: 10, borderRadius: '50%',
+                                  background: idx <= currentIdx ? stage.color : 'var(--border)',
+                                  border: idx === currentIdx ? `2px solid ${stage.color}` : '2px solid transparent',
+                                  boxShadow: idx === currentIdx ? `0 0 0 2px ${stage.color}33` : 'none',
+                                  transition: 'all 0.15s',
+                                }} title={stage.label} />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                       <div style={{ display:'flex', gap:8, justifyContent: 'flex-end' }}>
