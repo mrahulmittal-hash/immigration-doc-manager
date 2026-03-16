@@ -252,7 +252,4 @@ export const api = {
         return request(`/clients/${clientId}/audit${qs ? `?${qs}` : ''}`);
     },
     getRecentAudit: (limit = 20) => request(`/audit/recent?limit=${limit}`),
-
-    // Seed PIF data
-    seedPIFData: (clientId) => request(`/pif/seed/${clientId}`, { method: 'POST' }),
 };

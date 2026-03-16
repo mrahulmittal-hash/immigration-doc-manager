@@ -365,86 +365,19 @@ async function initDatabase() {
       )
     `);
 
-    // Seed default admin if none exists
+    // Seed default admin if none exists (required for first login)
     const bcrypt = require('bcryptjs');
-    const defaultHash = await bcrypt.hash('password123', 10);
-
-    const adminExists = await client.query("SELECT id FROM users WHERE email = 'rajinder@propagent.ca'");
+    const adminExists = await client.query("SELECT id FROM users LIMIT 1");
     if (adminExists.rowCount === 0) {
+      const defaultHash = await bcrypt.hash('admin123', 10);
       await client.query(`
         INSERT INTO users (name, email, password_hash, role, status)
-        VALUES ('Rajinder Anand', 'rajinder@propagent.ca', $1, 'Admin', 'active')
+        VALUES ('Admin', 'admin@propagent.ca', $1, 'Admin', 'active')
       `, [defaultHash]);
+      console.log('✅ Created default admin user (admin@propagent.ca / admin123)');
     }
 
-    // Seed sample users to match the current mock UI
-    const sarahExists = await client.query("SELECT id FROM users WHERE email = 'sarah@propagent.ca'");
-    if (sarahExists.rowCount === 0) {
-      await client.query(`
-        INSERT INTO users (name, email, password_hash, role, status)
-        VALUES
-        ('Sarah Kim', 'sarah@propagent.ca', $1, 'Case Manager', 'active'),
-        ('Priya Patel', 'priya@propagent.ca', $1, 'RCIC Consultant', 'active'),
-        ('David Chen', 'david@propagent.ca', $1, 'Viewer', 'inactive')
-      `, [defaultHash]);
-    }
-
-    // Update existing users without password_hash
-    await client.query(`UPDATE users SET password_hash = $1 WHERE password_hash IS NULL`, [defaultHash]);
-
-    // Seed sample clients for demo purposes
-    const clientsExist = await client.query("SELECT COUNT(*) as cnt FROM clients");
-    if (parseInt(clientsExist.rows[0].cnt) === 0) {
-      await client.query(`
-        INSERT INTO clients (first_name, last_name, email, phone, nationality, date_of_birth, passport_number, visa_type, status, pif_status, form_token, notes, created_at)
-        VALUES
-        ('Anish', 'Sharma', 'anish.sharma@gmail.com', '+1 (604) 555-0112', 'Indian', '1992-06-15', 'K8234567', 'Express Entry', 'active', 'completed', 'tok_anish01', 'CRS score 478. IELTS 7.5 overall. 3 years Canadian work experience as Software Engineer.', NOW() - INTERVAL '45 days'),
-        ('Wei', 'Chen', 'wei.chen@outlook.com', '+1 (416) 555-0198', 'Chinese', '1998-11-03', 'E12345678', 'Study Permit', 'active', 'sent', 'tok_wei02', 'Accepted to UBC Computer Science. GIC completed. Tuition paid for first year.', NOW() - INTERVAL '30 days'),
-        ('Phuong', 'Nguyen', 'phuong.n@yahoo.com', '+1 (587) 555-0234', 'Vietnamese', '1988-03-22', 'B7654321', 'Spousal Sponsorship', 'active', 'pending', 'tok_phuong03', 'Spouse is Canadian citizen. Married 2 years. Joint bank accounts and lease provided.', NOW() - INTERVAL '20 days'),
-        ('Raj', 'Patel', 'raj.patel@hotmail.com', '+1 (403) 555-0167', 'Indian', '1995-09-10', 'M4567890', 'Work Permit (PGWP)', 'active', 'completed', 'tok_raj04', 'Graduated from Conestoga College. Diploma in Business Management. Applied within 180 days.', NOW() - INTERVAL '60 days'),
-        ('Maria', 'Garcia', 'maria.garcia@gmail.com', '+1 (778) 555-0145', 'Mexican', '1990-12-01', 'G9876543', 'PR Application', 'active', 'sent', 'tok_maria05', 'Provincial Nominee Program — BC PNP Tech. Currently on work permit expiring Dec 2026.', NOW() - INTERVAL '15 days'),
-        ('Oleksandr', 'Kovalenko', 'oleks.koval@gmail.com', '+1 (647) 555-0289', 'Ukrainian', '1985-07-18', 'FA234567', 'Express Entry', 'active', 'completed', 'tok_oleks06', 'CUAET pathway. Currently working as Electrician. NOC 72200. CLB 8.', NOW() - INTERVAL '90 days'),
-        ('Fatima', 'Al-Hassan', 'fatima.alh@outlook.com', '+1 (905) 555-0321', 'Syrian', '1993-04-25', 'N1122334', 'Refugee Claim', 'active', 'pending', 'tok_fatima07', 'Referred by UNHCR. Family of 4. Awaiting hearing date from IRB.', NOW() - INTERVAL '10 days'),
-        ('James', 'O''Brien', 'james.obrien@icloud.com', '+1 (236) 555-0456', 'Irish', '1991-01-30', 'PA5566778', 'Work Permit (LMIA)', 'inactive', 'completed', 'tok_james08', 'LMIA approved for Restaurant Manager position. Employer: West Coast Dining Inc. Case closed — permit issued.', NOW() - INTERVAL '120 days')
-      `);
-
-      // Add some client_data entries for clients with completed PIFs
-      const anishId = (await client.query("SELECT id FROM clients WHERE email = 'anish.sharma@gmail.com'")).rows[0]?.id;
-      const rajId = (await client.query("SELECT id FROM clients WHERE email = 'raj.patel@hotmail.com'")).rows[0]?.id;
-      const oleksId = (await client.query("SELECT id FROM clients WHERE email = 'oleks.koval@gmail.com'")).rows[0]?.id;
-
-      if (anishId) {
-        await client.query(`
-          INSERT INTO client_data (client_id, field_key, field_value) VALUES
-          ($1, 'CRS Score', '478'),
-          ($1, 'IELTS Overall', '7.5'),
-          ($1, 'Work Experience (Years)', '3'),
-          ($1, 'Employer', 'TechNova Solutions Inc.'),
-          ($1, 'NOC Code', '21232')
-        `, [anishId]);
-      }
-      if (rajId) {
-        await client.query(`
-          INSERT INTO client_data (client_id, field_key, field_value) VALUES
-          ($1, 'Institution', 'Conestoga College'),
-          ($1, 'Program', 'Business Management'),
-          ($1, 'Graduation Date', '2025-12-15'),
-          ($1, 'Student Permit Expiry', '2026-06-15')
-        `, [rajId]);
-      }
-      if (oleksId) {
-        await client.query(`
-          INSERT INTO client_data (client_id, field_key, field_value) VALUES
-          ($1, 'CRS Score', '462'),
-          ($1, 'CLB Level', '8'),
-          ($1, 'Trade Certification', 'Red Seal Electrician'),
-          ($1, 'CUAET Status', 'Approved')
-        `, [oleksId]);
-      }
-
-      console.log('✅ Seeded 8 sample clients with data');
-    }
-
+    // Seed document checklists (reference data for visa types)
     const checklistExists = await client.query("SELECT COUNT(*) as cnt FROM document_checklists");
     if (parseInt(checklistExists.rows[0].cnt) === 0) {
       await client.query(`
@@ -704,108 +637,6 @@ async function initDatabase() {
       )
     `);
 
-    // Seed sample employers
-    const empExists = await client.query("SELECT COUNT(*) as cnt FROM employers");
-    if (parseInt(empExists.rows[0].cnt) === 0) {
-      await client.query(`
-        INSERT INTO employers (company_name, trade_name, business_number, contact_name, contact_email, contact_phone, address, city, province, postal_code, industry, num_employees, status)
-        VALUES
-        ('TechNova Solutions Inc.', 'TechNova', '123456789RC0001', 'Michael Torres', 'michael@technova.ca', '+1 (604) 555-0500', '1200 West Georgia St, Suite 800', 'Vancouver', 'BC', 'V6E 4A2', 'Technology', 150, 'active'),
-        ('West Coast Dining Inc.', 'West Coast Dining', '987654321RC0001', 'Patricia Wong', 'patricia@westcoastdining.ca', '+1 (604) 555-0600', '456 Robson St', 'Vancouver', 'BC', 'V6B 2B5', 'Food & Hospitality', 45, 'active')
-      `);
-
-      // Link James O'Brien to West Coast Dining with an LMIA
-      const jamesId = (await client.query("SELECT id FROM clients WHERE email = 'james.obrien@icloud.com'")).rows[0]?.id;
-      const wcId = (await client.query("SELECT id FROM employers WHERE company_name = 'West Coast Dining Inc.'")).rows[0]?.id;
-      if (jamesId && wcId) {
-        const lmiaResult = await client.query(`
-          INSERT INTO lmia_applications (employer_id, client_id, job_title, noc_code, teer_category, wage_offered, wage_type, work_location, stream, status, lmia_number, submission_date, decision_date, expiry_date, notes)
-          VALUES ($1, $2, 'Restaurant Manager', '60030', 'TEER 0', 28.50, 'hourly', 'Vancouver, BC', 'high_wage', 'approved', 'M1234567', '2025-08-15', '2025-10-01', '2026-04-01', 'LMIA approved — work permit issued')
-          RETURNING id
-        `, [wcId, jamesId]);
-        const lmiaId = lmiaResult.rows[0].id;
-
-        await client.query(`
-          INSERT INTO employer_clients (employer_id, client_id, job_title, start_date, wage, wage_type, status, lmia_id)
-          VALUES ($1, $2, 'Restaurant Manager', '2025-11-01', 28.50, 'hourly', 'active', $3)
-        `, [wcId, jamesId, lmiaId]);
-
-        await client.query(`
-          INSERT INTO job_bank_ads (lmia_id, employer_id, job_bank_id, job_title, noc_code, posting_date, expiry_date, posting_url, status, additional_ads)
-          VALUES ($1, $2, 'JB-2025-4567890', 'Restaurant Manager', '60030', '2025-07-01', '2025-08-01', 'https://www.jobbank.gc.ca/jobsearch/jobposting/4567890', 'completed',
-            '[{"platform":"Indeed","url":"https://indeed.com/job/12345","posting_date":"2025-07-01","expiry_date":"2025-08-01"}]')
-        `, [lmiaId, wcId]);
-      }
-
-      // Seed sample retainers
-      const anishRetId = (await client.query("SELECT id FROM clients WHERE email = 'anish.sharma@gmail.com'")).rows[0]?.id;
-      const weiRetId = (await client.query("SELECT id FROM clients WHERE email = 'wei.chen@outlook.com'")).rows[0]?.id;
-      if (anishRetId) {
-        await client.query(`
-          INSERT INTO retainers (client_id, service_type, retainer_fee, amount_paid, status, due_date, signed_date)
-          VALUES ($1, 'Express Entry Application', 5000.00, 5000.00, 'paid', '2025-12-01', '2025-10-15')
-        `, [anishRetId]);
-      }
-      if (weiRetId) {
-        await client.query(`
-          INSERT INTO retainers (client_id, service_type, retainer_fee, amount_paid, status, due_date, signed_date)
-          VALUES ($1, 'Study Permit Application', 3500.00, 1500.00, 'partial', '2026-04-01', '2026-01-10')
-        `, [weiRetId]);
-      }
-
-      // Seed employer fee
-      if (wcId) {
-        await client.query(`
-          INSERT INTO employer_fees (employer_id, description, amount, status, invoice_date, due_date)
-          VALUES ($1, 'LMIA Application Preparation — Restaurant Manager', 2500.00, 'paid', '2025-08-01', '2025-09-01')
-        `, [wcId]);
-      }
-
-      // Seed sample tasks
-      const taskAnishId = (await client.query("SELECT id FROM clients WHERE email = 'anish.sharma@gmail.com'")).rows[0]?.id;
-      const taskWeiId = (await client.query("SELECT id FROM clients WHERE email = 'wei.chen@outlook.com'")).rows[0]?.id;
-      const taskPhuongId = (await client.query("SELECT id FROM clients WHERE email = 'phuong.n@yahoo.com'")).rows[0]?.id;
-      const taskRajId = (await client.query("SELECT id FROM clients WHERE email = 'raj.patel@hotmail.com'")).rows[0]?.id;
-      const taskMariaId = (await client.query("SELECT id FROM clients WHERE email = 'maria.garcia@gmail.com'")).rows[0]?.id;
-
-      await client.query(`
-        INSERT INTO tasks (client_id, title, priority, category, due_date, done, created_by) VALUES
-        ($1, 'Send PIF to Anish Sharma', 'high', 'PIF', CURRENT_DATE, false, 'Admin'),
-        ($2, 'Review passport copies for W. Chen', 'high', 'Document Review', CURRENT_DATE + 1, false, 'Admin'),
-        ($3, 'Fill IMM5257 for P. Nguyen', 'medium', 'Form Filing', CURRENT_DATE + 3, false, 'Admin'),
-        ($4, 'Follow up on IELTS scores', 'medium', 'Client Follow-up', CURRENT_DATE - 1, true, 'Admin'),
-        ($5, 'Submit Express Entry profile', 'high', 'IRCC Submission', CURRENT_DATE + 5, false, 'Admin')
-      `, [taskAnishId, taskWeiId, taskPhuongId, taskRajId, taskMariaId]);
-
-      // Seed sample family members
-      if (taskPhuongId) {
-        await client.query(`
-          INSERT INTO family_members (client_id, relationship, first_name, last_name, date_of_birth, nationality, passport_number, immigration_status) VALUES
-          ($1, 'spouse', 'Michael', 'Nguyen', '1986-05-14', 'Canadian', 'HC1234567', 'citizen')
-        `, [taskPhuongId]);
-      }
-      if (taskAnishId) {
-        await client.query(`
-          INSERT INTO family_members (client_id, relationship, first_name, last_name, date_of_birth, nationality, passport_number, immigration_status) VALUES
-          ($1, 'spouse', 'Priya', 'Sharma', '1994-02-28', 'Indian', 'L5678901', 'work_permit'),
-          ($1, 'child', 'Aarav', 'Sharma', '2022-08-10', 'Indian', NULL, 'none')
-        `, [taskAnishId]);
-      }
-
-      // Set approved_date for James (case closed)
-      if (jamesId) {
-        await client.query(`UPDATE clients SET approved_date = '2025-11-15', pipeline_stage = 'approved' WHERE id = $1`, [jamesId]);
-      }
-      // Set pipeline stages for some clients
-      if (taskAnishId) await client.query(`UPDATE clients SET pipeline_stage = 'in_progress' WHERE id = $1`, [taskAnishId]);
-      if (taskWeiId) await client.query(`UPDATE clients SET pipeline_stage = 'consultation' WHERE id = $1`, [taskWeiId]);
-      if (taskPhuongId) await client.query(`UPDATE clients SET pipeline_stage = 'retainer_signed' WHERE id = $1`, [taskPhuongId]);
-      if (taskMariaId) await client.query(`UPDATE clients SET pipeline_stage = 'submitted' WHERE id = $1`, [taskMariaId]);
-
-      console.log('✅ Seeded tasks, family members, and pipeline stages');
-
-      console.log('✅ Seeded employers, LMIA, retainers, and fees');
-    }
 
     console.log('✅ PostgreSQL database initialized successfully');
   } finally {

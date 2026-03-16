@@ -68,7 +68,7 @@ export default function LoginPage() {
                             className="form-input"
                             value={email}
                             onChange={e => setEmail(e.target.value)}
-                            placeholder="rajinder@propagent.ca"
+                            placeholder="admin@propagent.ca"
                             required
                         />
                     </div>
@@ -99,15 +99,8 @@ export default function LoginPage() {
 
                     <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
                         <p style={{ margin: '4px 0' }}>
-                            <strong style={{ color: 'var(--text-secondary)' }}>Admin:</strong> rajinder@propagent.ca
+                            <strong style={{ color: 'var(--text-secondary)' }}>Admin:</strong> admin@propagent.ca / admin123
                         </p>
-                        <p style={{ margin: '4px 0' }}>
-                            <strong style={{ color: 'var(--text-secondary)' }}>Case Manager:</strong> sarah@propagent.ca
-                        </p>
-                        <p style={{ margin: '4px 0' }}>
-                            <strong style={{ color: 'var(--text-secondary)' }}>RCIC:</strong> priya@propagent.ca
-                        </p>
-                        <p style={{ margin: '4px 0', color: 'var(--text-muted)' }}>Password: password123</p>
                     </div>
                 </form>
             </div>
