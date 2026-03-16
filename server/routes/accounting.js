@@ -3,6 +3,145 @@ const router = express.Router();
 const { prepareAll, prepareGet, prepareRun, getDb } = require('../database');
 const { ensureTrustAccount, recordTransaction, generateInvoiceNumber, getClientFinancialSummary } = require('../services/accountingService');
 
+// ═══════════════════════════════════════════════════════════════
+// RETAINERS CRUD
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/clients/:clientId/retainers
+router.get('/clients/:clientId/retainers', async (req, res) => {
+  try {
+    const retainers = await prepareAll(
+      'SELECT * FROM retainers WHERE client_id = ? ORDER BY created_at DESC',
+      req.params.clientId
+    );
+    res.json(retainers);
+  } catch (err) {
+    console.error('Error fetching retainers:', err);
+    res.status(500).json({ error: 'Failed to fetch retainers' });
+  }
+});
+
+// POST /api/clients/:clientId/retainers
+router.post('/clients/:clientId/retainers', async (req, res) => {
+  try {
+    const { service_type, retainer_fee, due_date } = req.body;
+    if (!service_type) return res.status(400).json({ error: 'Service type is required' });
+
+    const result = await prepareRun(
+      `INSERT INTO retainers (client_id, service_type, retainer_fee, amount_paid, status, due_date)
+       VALUES (?, ?, ?, 0, 'pending', ?)`,
+      req.params.clientId, service_type, parseFloat(retainer_fee || 0), due_date || null
+    );
+
+    const retainer = await prepareGet('SELECT * FROM retainers WHERE id = ?', result.lastInsertRowid);
+
+    // Timeline event
+    await prepareRun(
+      `INSERT INTO client_timeline (client_id, event_type, title, description, created_by)
+       VALUES (?, 'retainer_created', 'Retainer created', ?, 'Admin')`,
+      req.params.clientId, `${service_type} — $${parseFloat(retainer_fee || 0).toFixed(2)}`
+    );
+
+    res.status(201).json(retainer);
+  } catch (err) {
+    console.error('Error creating retainer:', err);
+    res.status(500).json({ error: 'Failed to create retainer' });
+  }
+});
+
+// PUT /api/retainers/:id
+router.put('/retainers/:id', async (req, res) => {
+  try {
+    const { service_type, retainer_fee, status, signed_date, due_date } = req.body;
+    const existing = await prepareGet('SELECT * FROM retainers WHERE id = ?', req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Retainer not found' });
+
+    await prepareRun(
+      `UPDATE retainers SET service_type = ?, retainer_fee = ?, status = ?, signed_date = ?, due_date = ? WHERE id = ?`,
+      service_type || existing.service_type,
+      retainer_fee !== undefined ? parseFloat(retainer_fee) : existing.retainer_fee,
+      status || existing.status,
+      signed_date || existing.signed_date,
+      due_date || existing.due_date,
+      req.params.id
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error updating retainer:', err);
+    res.status(500).json({ error: 'Failed to update retainer' });
+  }
+});
+
+// DELETE /api/retainers/:id
+router.delete('/retainers/:id', async (req, res) => {
+  try {
+    await prepareRun('DELETE FROM retainers WHERE id = ?', req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting retainer:', err);
+    res.status(500).json({ error: 'Failed to delete retainer' });
+  }
+});
+
+// GET /api/retainers/:id/payments
+router.get('/retainers/:id/payments', async (req, res) => {
+  try {
+    const retainer = await prepareGet('SELECT * FROM retainers WHERE id = ?', req.params.id);
+    if (!retainer) return res.status(404).json({ error: 'Retainer not found' });
+
+    const payments = await prepareAll(
+      `SELECT * FROM transactions WHERE client_id = ? AND description LIKE '%retainer%' ORDER BY created_at DESC`,
+      retainer.client_id
+    );
+    res.json(payments);
+  } catch (err) {
+    console.error('Error fetching payments:', err);
+    res.status(500).json({ error: 'Failed to fetch payments' });
+  }
+});
+
+// POST /api/retainers/:id/payments
+router.post('/retainers/:id/payments', async (req, res) => {
+  try {
+    const { amount, description, reference_number } = req.body;
+    if (!amount || amount <= 0) return res.status(400).json({ error: 'Valid amount required' });
+
+    const retainer = await prepareGet('SELECT * FROM retainers WHERE id = ?', req.params.id);
+    if (!retainer) return res.status(404).json({ error: 'Retainer not found' });
+
+    // Update amount_paid on retainer
+    const newPaid = parseFloat(retainer.amount_paid || 0) + parseFloat(amount);
+    const newStatus = newPaid >= parseFloat(retainer.retainer_fee) ? 'active' : 'pending';
+    await prepareRun(
+      'UPDATE retainers SET amount_paid = ?, status = ? WHERE id = ?',
+      newPaid, newStatus, req.params.id
+    );
+
+    // Record as trust deposit
+    await ensureTrustAccount(retainer.client_id);
+    const pool = getDb();
+    const txId = await recordTransaction(pool, retainer.client_id, 'deposit_to_trust', parseFloat(amount),
+      description || `Retainer payment — ${retainer.service_type}`, { reference_number }
+    );
+
+    // Timeline
+    await prepareRun(
+      `INSERT INTO client_timeline (client_id, event_type, title, description, created_by)
+       VALUES (?, 'retainer_payment', 'Retainer payment received', ?, 'Admin')`,
+      retainer.client_id, `$${parseFloat(amount).toFixed(2)} for ${retainer.service_type}`
+    );
+
+    res.json({ success: true, transaction_id: txId, amount_paid: newPaid, status: newStatus });
+  } catch (err) {
+    console.error('Error recording payment:', err);
+    res.status(500).json({ error: 'Failed to record payment' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ACCOUNTING SUMMARY & TRUST
+// ═══════════════════════════════════════════════════════════════
+
 // GET /api/accounting/summary — Aggregate financial summary
 router.get('/accounting/summary', async (req, res) => {
   try {
