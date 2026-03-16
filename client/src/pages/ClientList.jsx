@@ -1,181 +1,183 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../api';
-import { Search, Users, Trash2, CheckCircle, Mail, Clock, Globe, Stamp } from 'lucide-react';
+import ClientDetailCenter from '../components/ClientDetailCenter';
+import ClientContextPanel from '../components/ClientContextPanel';
+import { Search, Users, Plus, Globe } from 'lucide-react';
 
 const PIPELINE_STAGES = [
-  { id: 'lead',            label: 'Lead',            color: '#656d76' },
-  { id: 'consultation',    label: 'Consultation',    color: '#3b82f6' },
-  { id: 'retainer_signed', label: 'Retainer',        color: '#8b5cf6' },
-  { id: 'in_progress',     label: 'In Progress',     color: '#f59e0b' },
-  { id: 'submitted',       label: 'Submitted',       color: '#ec4899' },
-  { id: 'approved',        label: 'Approved',        color: '#10b981' },
+  { id: 'all',              label: 'All' },
+  { id: 'lead',             label: 'Lead' },
+  { id: 'consultation',     label: 'Consultation' },
+  { id: 'retainer_signed',  label: 'Retainer' },
+  { id: 'in_progress',      label: 'In Progress' },
+  { id: 'submitted',        label: 'Submitted' },
+  { id: 'approved',         label: 'Approved' },
 ];
 
-const STATUS_OPTS = ['all', 'active', 'inactive'];
-const PIF_OPTS   = ['all', 'pending', 'sent', 'completed'];
+const STAGE_COLORS = {
+  lead: '#656d76', consultation: '#3b82f6', retainer_signed: '#8b5cf6',
+  in_progress: '#f59e0b', submitted: '#ec4899', approved: '#10b981',
+};
 
 export default function ClientList() {
+  const { id: routeId } = useParams();
+  const navigate = useNavigate();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch]   = useState('');
-  const [status, setStatus]   = useState('all');
-  const [pif, setPif]         = useState('all');
+  const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState('all');
+  const [selectedId, setSelectedId] = useState(routeId ? Number(routeId) : null);
+  const [selectedClient, setSelectedClient] = useState(null);
 
   useEffect(() => {
     api.getClients().then(setClients).finally(() => setLoading(false));
   }, []);
 
+  // Sync route param
+  useEffect(() => {
+    if (routeId) setSelectedId(Number(routeId));
+  }, [routeId]);
+
   const filtered = clients.filter(c => {
     const q = search.toLowerCase();
     const name = `${c.first_name} ${c.last_name}`.toLowerCase();
     if (q && !name.includes(q) && !(c.email||'').toLowerCase().includes(q) && !(c.nationality||'').toLowerCase().includes(q)) return false;
-    if (status !== 'all' && c.status !== status) return false;
-    if (pif    !== 'all' && c.pif_status !== pif) return false;
+    if (stageFilter !== 'all' && (c.pipeline_stage || 'lead') !== stageFilter) return false;
     return true;
   });
 
-  async function deleteClient(id) {
-    if (!confirm('Delete this client?')) return;
-    await api.deleteClient(id);
-    setClients(prev => prev.filter(c => c.id !== id));
-  }
+  const handleSelectClient = (cId) => {
+    setSelectedId(cId);
+    navigate(`/clients/${cId}`, { replace: true });
+  };
 
-  const pifBadge = { pending:'badge-warning', sent:'badge-primary', completed:'badge-success' };
-  const pifIcon = { pending: Clock, sent: Mail, completed: CheckCircle };
+  const handleClientUpdated = (data) => {
+    setSelectedClient(data);
+    // Update sidebar list too
+    setClients(prev => prev.map(c => c.id === data.id ? { ...c, ...data } : c));
+  };
 
   return (
-    <div className="page-enter">
-      <div className="page-header">
-        <div>
-          <div className="page-title">Contacts & Clients</div>
-          <div className="page-subtitle">Manage all individuals and their application forms in your practice.</div>
-        </div>
-        <Link to="/clients/new" className="btn btn-primary" style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}>+ Add Client</Link>
-      </div>
+    <div className="clients-3panel">
+      {/* ── Left Sidebar ── */}
+      <div className="clients-sidebar">
+        <Link to="/clients/new" className="clients-add-btn">
+          <Plus size={16} /> Add Client
+        </Link>
 
-      {/* Modern Filters */}
-      <div className="card" style={{ padding: '16px 20px', marginBottom: 20, display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 280, position: 'relative' }}>
-          <span style={{ position: 'absolute', left: 14, top: 11, color: 'var(--text-muted)' }}><Search size={14} /></span>
+        {/* Search */}
+        <div className="clients-search-wrap">
+          <span className="clients-search-icon"><Search size={14} /></span>
           <input
-            placeholder="Search by name, email, or nationality..."
+            className="clients-search-input"
+            placeholder="Search clients..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{
-              width: '100%', padding: '10px 14px 10px 36px', borderRadius: 8,
-              background: 'var(--bg-surface)', border: '1px solid var(--border)',
-              color: 'var(--text-primary)', fontSize: 13, outline: 'none'
-            }}
           />
         </div>
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          <select className="form-select" style={{ minWidth: 150 }} value={status} onChange={e => setStatus(e.target.value)}>
-            {STATUS_OPTS.map(s => <option key={s} value={s}>{s === 'all' ? 'All Account Status' : `Account: ${s.charAt(0).toUpperCase()+s.slice(1)}`}</option>)}
-          </select>
-          <select className="form-select" style={{ minWidth: 150 }} value={pif} onChange={e => setPif(e.target.value)}>
-            {PIF_OPTS.map(p => <option key={p} value={p}>{p === 'all' ? 'All PIF Status' : 'PIF: '+p.charAt(0).toUpperCase()+p.slice(1)}</option>)}
-          </select>
+        {/* Stage filter chips */}
+        <div style={{ display: 'flex', gap: 6, padding: '4px 12px 8px', flexWrap: 'wrap' }}>
+          {PIPELINE_STAGES.map(s => (
+            <button
+              key={s.id}
+              className={`clients-filter-chip ${stageFilter === s.id ? 'active' : ''}`}
+              onClick={() => setStageFilter(s.id)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Client list */}
+        <div className="clients-list">
+          {loading && (
+            <div style={{ padding: 32, textAlign: 'center' }}><div className="spinner" /></div>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              No clients found
+            </div>
+          )}
+          {filtered.map(c => {
+            const isActive = c.id === selectedId;
+            const stage = c.pipeline_stage || 'lead';
+            const stageColor = STAGE_COLORS[stage] || '#656d76';
+            return (
+              <div
+                key={c.id}
+                className={`clients-list-item ${isActive ? 'active' : ''}`}
+                onClick={() => handleSelectClient(c.id)}
+              >
+                <div className="clients-item-avatar">
+                  {c.first_name?.[0]}{c.last_name?.[0]}
+                </div>
+                <div className="clients-item-info">
+                  <div className="clients-item-name">{c.first_name} {c.last_name}</div>
+                  <div className="clients-item-meta">
+                    {c.email || c.nationality || 'No contact info'}
+                  </div>
+                </div>
+                <span className="clients-item-badge" style={{
+                  background: `${stageColor}18`,
+                  color: stageColor,
+                  border: `1px solid ${stageColor}33`,
+                }}>
+                  {PIPELINE_STAGES.find(s => s.id === stage)?.label || stage}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer count */}
+        <div style={{
+          padding: '10px 16px', borderTop: '1px solid var(--border)',
+          fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+          display: 'flex', justifyContent: 'space-between',
+        }}>
+          <span>{filtered.length} clients</span>
+          <span>{clients.length} total</span>
         </div>
       </div>
 
-      {loading && <div className="spinner-container"><div className="spinner" /></div>}
-
-      {!loading && filtered.length === 0 && (
-        <div className="empty">
-          <div className="empty-icon"><Users size={32} /></div>
-          <div className="empty-title">No clients found</div>
-          <div className="empty-text">Try changing your search or filters</div>
-          <Link to="/clients/new" className="btn btn-primary" style={{ marginTop:12 }}>+ New Client</Link>
+      {/* ── Center Panel ── */}
+      <div className="clients-center">
+        <div className="clients-center-scroll">
+          {!selectedId ? (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              justifyContent: 'center', height: '100%', color: 'var(--text-muted)',
+            }}>
+              <div style={{
+                width: 80, height: 80, borderRadius: 20,
+                background: 'linear-gradient(135deg, rgba(13,148,136,.1), rgba(15,118,110,.1))',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginBottom: 20,
+              }}>
+                <Users size={36} style={{ color: '#0d9488' }} />
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 8 }}>
+                Select a Client
+              </div>
+              <div style={{ fontSize: 14, color: 'var(--text-muted)', maxWidth: 300, textAlign: 'center', lineHeight: 1.5 }}>
+                Choose a client from the sidebar to view their full case details, workflow stages, and documents.
+              </div>
+            </div>
+          ) : (
+            <ClientDetailCenter
+              key={selectedId}
+              clientId={selectedId}
+              onClientUpdated={handleClientUpdated}
+            />
+          )}
         </div>
-      )}
+      </div>
 
-      {!loading && filtered.length > 0 && (
-        <div className="card" style={{ padding:0, overflow:'hidden', border: '1px solid var(--border)', borderRadius: 12 }}>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ padding: '16px 20px' }}>Client Name</th>
-                  <th style={{ padding: '16px 20px' }}>Contact Info</th>
-                  <th style={{ padding: '16px 20px' }}>Application</th>
-                  <th style={{ padding: '16px 20px' }}>Workflow Stage</th>
-                  <th style={{ padding: '16px 20px', textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(c => {
-                  return (
-                  <tr key={c.id}>
-                    <td style={{ padding: '16px 20px' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                        <div style={{
-                          width:36, height:36, borderRadius:'10px', flexShrink:0,
-                          background: 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(5,150,105,0.2))',
-                          display:'flex', alignItems:'center', justifyContent:'center',
-                          fontSize:13, fontWeight:700, color:'#10b981',
-                          border: '1px solid rgba(16,185,129,0.3)'
-                        }}>
-                          {c.first_name[0]}{c.last_name[0]}
-                        </div>
-                        <div>
-                          <Link to={`/clients/${c.id}`} style={{ fontWeight:700, color:'var(--text-primary)', fontSize:14, textDecoration: 'none' }}>
-                            {c.first_name} {c.last_name}
-                          </Link>
-                          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop: 2, display:'flex', alignItems:'center', gap:4 }}>
-                            {c.nationality ? <><Globe size={10} /> {c.nationality}</> : 'No nationality listed'}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ padding: '16px 20px' }}>
-                      {c.email ? <div style={{ fontSize:13, color: 'var(--text-secondary)' }}>{c.email}</div> : <div style={{ fontSize:13, color:'var(--text-muted)' }}>No email</div>}
-                      {c.phone && <div style={{ fontSize:12, color:'var(--text-muted)', marginTop: 2 }}>{c.phone}</div>}
-                    </td>
-                    <td style={{ padding: '16px 20px' }}>
-                      {c.visa_type ? (
-                        <span className="badge badge-primary">{c.visa_type}</span>
-                      ) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
-                    </td>
-                    <td style={{ padding: '16px 20px' }}>
-                      {(() => {
-                        const currentStage = c.pipeline_stage || 'lead';
-                        const currentIdx = PIPELINE_STAGES.findIndex(s => s.id === currentStage);
-                        const stageInfo = PIPELINE_STAGES[currentIdx] || PIPELINE_STAGES[0];
-                        return (
-                          <div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: stageInfo.color, marginBottom: 6 }}>
-                              {stageInfo.label}
-                            </div>
-                            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                              {PIPELINE_STAGES.map((stage, idx) => (
-                                <div key={stage.id} style={{
-                                  width: 10, height: 10, borderRadius: '50%',
-                                  background: idx <= currentIdx ? stage.color : 'var(--border)',
-                                  border: idx === currentIdx ? `2px solid ${stage.color}` : '2px solid transparent',
-                                  boxShadow: idx === currentIdx ? `0 0 0 2px ${stage.color}33` : 'none',
-                                  transition: 'all 0.15s',
-                                }} title={stage.label} />
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                      <div style={{ display:'flex', gap:8, justifyContent: 'flex-end' }}>
-                        <Link to={`/clients/${c.id}`} className="btn btn-ghost btn-sm">View File</Link>
-                        <button className="btn btn-ghost btn-sm" style={{ color:'#ef4444', display:'flex', alignItems:'center' }} onClick={() => deleteClient(c.id)}><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* ── Right Context Panel ── */}
+      {selectedId && selectedClient && (
+        <ClientContextPanel client={selectedClient} />
       )}
     </div>
   );

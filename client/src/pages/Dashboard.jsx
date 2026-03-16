@@ -4,7 +4,8 @@ import { api } from '../api';
 import {
   Users, CheckCircle, Clock, FileText, Calendar, CreditCard,
   UserPlus, CheckSquare, ArrowRight, BarChart3, Newspaper, AlertTriangle,
-  Activity, Globe, GitBranch, Briefcase, Cake, Award, Circle, Check
+  Activity, Globe, GitBranch, Briefcase, Cake, Award, Circle, Check,
+  ClipboardList, FolderOpen, Building2
 } from 'lucide-react';
 
 const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
@@ -214,8 +215,11 @@ export default function Dashboard() {
             { to: '/calendar', gradient: 'gradient-emerald', icon: Calendar, title: 'Calendar', desc: 'View your schedule at a glance' },
             { to: '/retainers', gradient: 'gradient-amber', icon: CreditCard, title: 'Trust Accounting', desc: 'Trust accounts, billing & payments' },
             { to: '/ircc-updates', gradient: 'gradient-violet', icon: Newspaper, title: 'IRCC Updates', desc: 'Latest immigration news & policies' },
+            { to: '/ircc-templates', gradient: 'gradient-rose', icon: ClipboardList, title: 'IRCC Forms', desc: 'Fillable application form templates' },
+            { to: '/ircc-templates', gradient: 'gradient-cyan', icon: FolderOpen, title: 'Document Templates', desc: 'All forms by visa category', key: 'doc-templates' },
+            { to: '/employers', gradient: 'gradient-orange', icon: Building2, title: 'Employers', desc: 'LMIA employers & job offers' },
           ].map(card => (
-            <Link key={card.to} to={card.to} className={`dash-workspace-card ${card.gradient}`}>
+            <Link key={card.key || card.to} to={card.to} className={`dash-workspace-card ${card.gradient}`}>
               <div className="dash-workspace-card-icon"><card.icon size={22} /></div>
               {card.badge && <div className="dash-workspace-card-badge">{card.badge}</div>}
               <div className="dash-workspace-card-title">{card.title}</div>

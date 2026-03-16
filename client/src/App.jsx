@@ -8,7 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Pipeline from './pages/Pipeline';
 import ClientList from './pages/ClientList';
 import CreateClient from './pages/CreateClient';
-import ClientDetail from './pages/ClientDetail';
+// ClientDetail is now integrated into ClientList's 3-panel layout
 import Tasks from './pages/Tasks';
 import CalendarPage from './pages/CalendarPage';
 import TrustAccounting from './pages/TrustAccounting';
@@ -17,6 +17,7 @@ import SignPage from './pages/SignPage';
 import ClientPortal from './pages/ClientPortal';
 import UsersPage from './pages/UsersPage';
 import ImmigrationUpdates from './pages/ImmigrationUpdates';
+import IRCCTemplates from './pages/IRCCTemplates';
 import EmailSettings from './pages/EmailSettings';
 import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
@@ -164,12 +165,13 @@ export default function App() {
                   <Route path="/pipeline" element={<Pipeline />} />
                   <Route path="/clients" element={<ClientList />} />
                   <Route path="/clients/new" element={<CreateClient />} />
-                  <Route path="/clients/:id" element={<ClientDetail />} />
+                  <Route path="/clients/:id" element={<ClientList />} />
                   <Route path="/tasks" element={<Tasks />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/retainers" element={<TrustAccounting />} />
                   <Route path="/users" element={<UsersPage />} />
                   <Route path="/ircc-updates" element={<ImmigrationUpdates />} />
+                  <Route path="/ircc-templates" element={<IRCCTemplates />} />
                   <Route path="/settings/email" element={<EmailSettings />} />
                   <Route path="*" element={<Navigate to="/" />} />
                 </Routes>

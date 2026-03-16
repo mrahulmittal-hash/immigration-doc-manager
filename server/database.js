@@ -314,6 +314,20 @@ async function initDatabase() {
       )
     `);
 
+    // IRCC Form Templates (uploaded PDFs for each form number)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ircc_form_templates (
+        id              SERIAL PRIMARY KEY,
+        form_number     TEXT NOT NULL UNIQUE,
+        form_name       TEXT,
+        visa_type       TEXT,
+        file_path       TEXT NOT NULL,
+        file_size       BIGINT,
+        uploaded_at     TIMESTAMPTZ DEFAULT NOW(),
+        notes           TEXT
+      )
+    `);
+
     // Email Integration
     await client.query(`
       CREATE TABLE IF NOT EXISTS email_settings (
