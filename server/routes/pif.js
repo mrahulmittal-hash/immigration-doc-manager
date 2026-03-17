@@ -47,7 +47,22 @@ router.get('/data/:clientId', async (req, res) => {
     }
 });
 
-// PUT /api/pif/data/:clientId — Admin edits PIF data
+// Helper: compute diff between old and new PIF data
+function computePifDiff(oldData, newData) {
+    const diff = {};
+    const allKeys = new Set([...Object.keys(oldData || {}), ...Object.keys(newData || {})]);
+    for (const key of allKeys) {
+        if (key === 'consent') continue;
+        const oldVal = JSON.stringify(oldData?.[key] ?? '');
+        const newVal = JSON.stringify(newData?.[key] ?? '');
+        if (oldVal !== newVal) {
+            diff[key] = { old: oldData?.[key] ?? '', new: newData?.[key] ?? '' };
+        }
+    }
+    return diff;
+}
+
+// PUT /api/pif/data/:clientId — Admin edits PIF data (with change tracking)
 router.put('/data/:clientId', async (req, res) => {
     try {
         const clientId = parseInt(req.params.clientId);
@@ -55,7 +70,34 @@ router.put('/data/:clientId', async (req, res) => {
         if (!form_data) return res.status(400).json({ error: 'form_data is required' });
 
         const existing = await prepareGet('SELECT * FROM pif_submissions WHERE client_id = ?', clientId);
+        let changesDetected = false;
+        let changedCount = 0;
+        let reverificationId = null;
+
         if (existing) {
+            const oldData = JSON.parse(existing.form_data || '{}');
+            const diff = computePifDiff(oldData, form_data);
+            changedCount = Object.keys(diff).length;
+            changesDetected = changedCount > 0;
+
+            if (changesDetected) {
+                // Clear consent since data changed
+                form_data.consent = false;
+
+                // Mark older pending requests as superseded
+                await prepareRun(
+                    `UPDATE pif_reverification_requests SET status = 'superseded' WHERE client_id = ? AND status IN ('pending', 'sent')`,
+                    clientId
+                );
+
+                // Create new reverification request
+                const result = await prepareGet(
+                    `INSERT INTO pif_reverification_requests (client_id, changed_fields, changed_by) VALUES (?, ?::jsonb, ?) RETURNING id`,
+                    clientId, JSON.stringify(diff), req.user?.id || null
+                );
+                reverificationId = result?.id;
+            }
+
             await prepareRun(
                 'UPDATE pif_submissions SET form_data = ?, updated_at = NOW() WHERE client_id = ?',
                 JSON.stringify(form_data), clientId
@@ -67,7 +109,13 @@ router.put('/data/:clientId', async (req, res) => {
             );
         }
 
-        res.json({ success: true, message: 'PIF data updated successfully' });
+        res.json({
+            success: true,
+            message: 'PIF data updated successfully',
+            changes_detected: changesDetected,
+            changed_count: changedCount,
+            reverification_id: reverificationId
+        });
     } catch (err) {
         console.error('Error updating PIF data:', err);
         res.status(500).json({ error: 'Failed to update PIF data' });
@@ -645,6 +693,86 @@ router.get('/data/:clientId/verification-summary', async (req, res) => {
     }
 });
 
+// POST /api/pif/data/:clientId/send-reverification — Admin sends re-verification email to client
+router.post('/data/:clientId/send-reverification', async (req, res) => {
+    try {
+        const clientId = parseInt(req.params.clientId);
+
+        // Find latest pending/sent reverification request
+        const request = await prepareGet(
+            `SELECT id, changed_fields FROM pif_reverification_requests WHERE client_id = ? AND status IN ('pending') ORDER BY created_at DESC LIMIT 1`,
+            clientId
+        );
+        if (!request) {
+            return res.status(404).json({ error: 'No pending re-verification request found. Save changes first.' });
+        }
+
+        const client = await prepareGet('SELECT id, first_name, last_name, email, form_token FROM clients WHERE id = ?', clientId);
+        if (!client || !client.email) {
+            return res.status(400).json({ error: 'Client not found or has no email address' });
+        }
+
+        // Generate form_token if missing
+        if (!client.form_token) {
+            const { v4: uuidv4 } = require('uuid');
+            const token = uuidv4();
+            await prepareRun('UPDATE clients SET form_token = ? WHERE id = ?', token, clientId);
+            client.form_token = token;
+        }
+
+        const changedFields = typeof request.changed_fields === 'string' ? JSON.parse(request.changed_fields) : request.changed_fields;
+        const changeCount = Object.keys(changedFields).length;
+
+        // Send re-verification email
+        const { sendPIFReverificationEmail } = require('../services/emailService');
+        const clientName = `${client.first_name} ${client.last_name}`;
+        await sendPIFReverificationEmail(client.email, clientName, client.form_token, changeCount);
+
+        // Update request status
+        await prepareRun(`UPDATE pif_reverification_requests SET status = 'sent' WHERE id = ?`, request.id);
+
+        // Update client PIF status
+        await prepareRun(`UPDATE clients SET pif_status = 'pending_reverification', updated_at = NOW() WHERE id = ?`, clientId);
+
+        console.log(`Re-verification email sent to ${clientName} (${client.email}) — ${changeCount} fields changed`);
+        res.json({ success: true, message: `Re-verification request sent to ${client.email}` });
+    } catch (err) {
+        console.error('Error sending re-verification:', err);
+        res.status(500).json({ error: 'Failed to send re-verification request' });
+    }
+});
+
+// GET /api/pif/data/:clientId/reverification-history — Admin fetches re-verification history
+router.get('/data/:clientId/reverification-history', async (req, res) => {
+    try {
+        const clientId = parseInt(req.params.clientId);
+        const rows = await prepareAll(
+            `SELECT r.*, u.name as changed_by_name
+             FROM pif_reverification_requests r
+             LEFT JOIN users u ON r.changed_by = u.id
+             WHERE r.client_id = ?
+             ORDER BY r.created_at DESC`,
+            clientId
+        );
+
+        const history = rows.map(r => ({
+            id: r.id,
+            changed_fields: typeof r.changed_fields === 'string' ? JSON.parse(r.changed_fields) : r.changed_fields,
+            changed_by_name: r.changed_by_name || 'Unknown',
+            status: r.status,
+            consent_given: r.consent_given,
+            consent_at: r.consent_at,
+            created_at: r.created_at,
+            responded_at: r.responded_at,
+        }));
+
+        res.json(history);
+    } catch (err) {
+        console.error('Error fetching reverification history:', err);
+        res.status(500).json({ error: 'Failed to fetch history' });
+    }
+});
+
 // ═══════════════════════════════════════════════════════════════
 // /:token wildcard routes — MUST come AFTER /data/* routes
 // ═══════════════════════════════════════════════════════════════
@@ -718,6 +846,77 @@ router.post('/:token', async (req, res) => {
     } catch (err) {
         console.error('Error saving PIF submission:', err);
         res.status(500).json({ error: 'Failed to save form submission' });
+    }
+});
+
+// GET /api/pif/:token/reverification — Client fetches pending changes to review
+router.get('/:token/reverification', async (req, res) => {
+    try {
+        const { token } = req.params;
+        const client = await prepareGet('SELECT id FROM clients WHERE form_token = ?', token);
+        if (!client) return res.status(404).json({ error: 'Invalid or expired form link' });
+
+        const request = await prepareGet(
+            `SELECT id, changed_fields, created_at FROM pif_reverification_requests WHERE client_id = ? AND status = 'sent' ORDER BY created_at DESC LIMIT 1`,
+            client.id
+        );
+
+        if (!request) {
+            return res.json({ has_reverification: false });
+        }
+
+        const submission = await prepareGet('SELECT form_data FROM pif_submissions WHERE client_id = ?', client.id);
+        const currentData = submission ? JSON.parse(submission.form_data) : {};
+
+        res.json({
+            has_reverification: true,
+            reverification_id: request.id,
+            changed_fields: typeof request.changed_fields === 'string' ? JSON.parse(request.changed_fields) : request.changed_fields,
+            current_data: currentData,
+            created_at: request.created_at,
+        });
+    } catch (err) {
+        console.error('Error fetching reverification:', err);
+        res.status(500).json({ error: 'Failed to load re-verification data' });
+    }
+});
+
+// POST /api/pif/:token/reverification — Client submits reviewed data + consent
+router.post('/:token/reverification', async (req, res) => {
+    try {
+        const { token } = req.params;
+        const client = await prepareGet('SELECT id, first_name, last_name FROM clients WHERE form_token = ?', token);
+        if (!client) return res.status(404).json({ error: 'Invalid or expired form link' });
+
+        const { reverification_id, form_data, consent } = req.body;
+        if (!consent) {
+            return res.status(400).json({ error: 'You must provide consent to submit.' });
+        }
+        if (!form_data || !reverification_id) {
+            return res.status(400).json({ error: 'Missing form data or reverification ID.' });
+        }
+
+        // Update the PIF submission data
+        form_data.consent = true;
+        await prepareRun(
+            'UPDATE pif_submissions SET form_data = ?, updated_at = NOW() WHERE client_id = ?',
+            JSON.stringify(form_data), client.id
+        );
+
+        // Mark reverification request as confirmed
+        await prepareRun(
+            `UPDATE pif_reverification_requests SET status = 'confirmed', consent_given = true, consent_at = NOW(), responded_at = NOW() WHERE id = ? AND client_id = ?`,
+            reverification_id, client.id
+        );
+
+        // Restore PIF status to completed
+        await prepareRun(`UPDATE clients SET pif_status = 'completed', updated_at = NOW() WHERE id = ?`, client.id);
+
+        console.log(`Re-verification confirmed by ${client.first_name} ${client.last_name} (ID: ${client.id})`);
+        res.json({ success: true, message: 'Changes reviewed and consent provided successfully.' });
+    } catch (err) {
+        console.error('Error processing reverification:', err);
+        res.status(500).json({ error: 'Failed to process re-verification' });
     }
 });
 

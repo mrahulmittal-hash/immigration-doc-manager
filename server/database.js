@@ -660,6 +660,22 @@ async function initDatabase() {
       )
     `);
 
+    // ── PIF Re-verification Requests ─────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pif_reverification_requests (
+        id              SERIAL PRIMARY KEY,
+        client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        changed_fields  JSONB NOT NULL,
+        changed_by      INTEGER REFERENCES users(id),
+        status          TEXT DEFAULT 'pending',
+        consent_given   BOOLEAN DEFAULT FALSE,
+        consent_at      TIMESTAMPTZ,
+        notes           TEXT,
+        created_at      TIMESTAMPTZ DEFAULT NOW(),
+        responded_at    TIMESTAMPTZ
+      )
+    `);
+
     // ── Immigration Photos ───────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS immigration_photos (

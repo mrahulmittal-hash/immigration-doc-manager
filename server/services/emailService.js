@@ -282,4 +282,61 @@ async function sendRetainerAgreementEmail(clientEmail, clientName, agreementHtml
     return await sendViaGmail(clientEmail, subject, htmlBody, '', clientName);
 }
 
-module.exports = { sendPIFEmail, sendPortalEmail, sendSignatureRequestEmail, sendRetainerAgreementEmail };
+// -----------------------------------------------------------------------
+// PIF Re-verification Request Email
+// -----------------------------------------------------------------------
+async function sendPIFReverificationEmail(clientEmail, clientName, formToken, changeCount) {
+    const formUrl = `${FRONTEND_URL}/pif/${formToken}?reverify=1`;
+    const subject = `Action Required: Please Review Changes to Your Information — PropAgent`;
+    const htmlBody = `<!DOCTYPE html>
+    <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0; padding:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5;">
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 16px 16px 0 0; padding: 40px 30px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">🌏 PropAgent</h1>
+          <p style="color: #94a3b8; margin: 8px 0 0; font-size: 14px;">RCIC Immigration Services</p>
+        </div>
+        <div style="background: #ffffff; padding: 40px 30px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+          <h2 style="color: #1a1a2e; font-size: 22px; margin: 0 0 16px;">Hello ${clientName},</h2>
+          <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">
+            Your case manager has updated <strong style="color: #d97706;">${changeCount} field${changeCount > 1 ? 's' : ''}</strong>
+            in your Personal Information Form. Please review these changes to ensure everything is accurate.
+          </p>
+          <div style="background: #fffbeb; border: 1px solid #fbbf24; border-radius: 10px; padding: 16px 20px; margin: 20px 0;">
+            <p style="color: #92400e; font-size: 14px; margin: 0; font-weight: 600;">⚠️ Your consent is required</p>
+            <p style="color: #92400e; font-size: 13px; margin: 8px 0 0; line-height: 1.5;">
+              Changed fields will be highlighted for easy review. You can edit any field before confirming.
+              Your previous consent has been reset and you must re-consent after reviewing.
+            </p>
+          </div>
+          <div style="text-align: center; margin: 32px 0;">
+            <a href="${formUrl}"
+               style="display: inline-block; background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+                      color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 10px;
+                      font-size: 16px; font-weight: 600; letter-spacing: 0.3px;
+                      box-shadow: 0 4px 15px rgba(217, 119, 6, 0.3);">
+                📋 Review Changes
+            </a>
+          </div>
+          <p style="color: #94a3b8; font-size: 13px; text-align: center; margin: 0 0 24px;">
+            Or copy this link: <a href="${formUrl}" style="color: #0f3460;">${formUrl}</a>
+          </p>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0 0 16px 16px; padding: 24px 30px; text-align: center;">
+          <p style="color: #64748b; font-size: 13px; margin: 0 0 4px; font-weight: 600;">PropAgent</p>
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">RCIC Immigration Platform</p>
+          <p style="color: #94a3b8; font-size: 11px; margin: 12px 0 0;">
+            This email was sent because your case manager updated your immigration application details.
+            Please do not share this link with anyone.
+          </p>
+        </div>
+      </div>
+    </body></html>`;
+
+    if (isSESEnabled()) {
+        return await sendViaSES(clientEmail, subject, htmlBody, formUrl);
+    }
+    return await sendViaGmail(clientEmail, subject, htmlBody, formUrl, clientName);
+}
+
+module.exports = { sendPIFEmail, sendPortalEmail, sendSignatureRequestEmail, sendRetainerAgreementEmail, sendPIFReverificationEmail };

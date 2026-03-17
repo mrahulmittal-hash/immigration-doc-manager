@@ -270,6 +270,10 @@ export const api = {
     }),
     getPIFVerificationSummary: (clientId) => request(`/pif/data/${clientId}/verification-summary`),
 
+    // PIF Re-verification
+    sendPIFReverification: (clientId) => request(`/pif/data/${clientId}/send-reverification`, { method: 'POST' }),
+    getPIFReverificationHistory: (clientId) => request(`/pif/data/${clientId}/reverification-history`),
+
     // Admin — Service Fees
     getServiceFees: () => request('/admin/service-fees'),
     getActiveServiceFees: () => request('/service-fees/active'),

@@ -1143,6 +1143,63 @@ td strong { color: var(--text-primary); }
 }
 .pif-validation-list li { margin-bottom: 4px; }
 
+/* ── PIF Re-verification Styles ──────────────────────────────── */
+.pif-field-changed {
+  border-left: 3px solid #f59e0b !important;
+  padding-left: 10px;
+  background: rgba(245, 158, 11, 0.06);
+  border-radius: 6px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.pif-changed-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #f59e0b;
+  color: #fff;
+  border-radius: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.pif-changed-old {
+  font-size: 11px;
+  color: rgba(255,255,255,.4);
+  margin-top: 4px;
+  font-style: italic;
+}
+.pif-changed-old strong {
+  color: rgba(255,255,255,.6);
+}
+.pif-reverify-banner {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 10px;
+  margin-bottom: 20px;
+  grid-column: 1 / -1;
+  color: #fbbf24;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.pif-reverify-banner-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.pif-reverify-banner strong {
+  color: #fcd34d;
+  font-size: 14px;
+}
+.pif-reverify-banner p {
+  color: rgba(255,255,255,.55);
+}
+
 /* ═══════════════════════════════════════════════════════════
    PIF Viewer — Case Manager Light Theme (pv-*)
    ═══════════════════════════════════════════════════════════ */

@@ -1,32 +1,37 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { api } from '../api';
 import PDFRenderer from './PDFRenderer';
-import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ArrowLeftRight, FileSearch, Loader2, MessageSquare, PanelRightClose, Key, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ArrowLeftRight, FileSearch, Loader2, MessageSquare, PanelRightClose, Plus, ChevronDown, ChevronUp, Send, Clock, History } from 'lucide-react';
 
 const STEPS = [
-    { id: 'personal', title: 'Personal Information', Icon: User, color: '#4f46e5' },
-    { id: 'canada', title: 'Canada History', Icon: MapPin, color: '#0891b2' },
-    { id: 'passport', title: 'Passport Details', Icon: BookOpen, color: '#7c3aed' },
-    { id: 'spouse', title: 'Spouse Details', Icon: Heart, color: '#e11d48' },
-    { id: 'parents', title: 'Parents Details', Icon: Users, color: '#0d9488' },
-    { id: 'education', title: 'Education History', Icon: GraduationCap, color: '#2563eb' },
-    { id: 'work', title: 'Work / Personal History', Icon: Briefcase, color: '#ca8a04' },
+    { id: 'personal', title: 'Personal Details', Icon: User, color: '#4f46e5' },
+    { id: 'contact', title: 'Contact Information', Icon: MapPin, color: '#06b6d4' },
+    { id: 'passport', title: 'Passport & ID', Icon: BookOpen, color: '#7c3aed' },
+    { id: 'canada', title: 'Canada History & Visit', Icon: MapPin, color: '#0891b2' },
+    { id: 'spouse', title: 'Spouse / Partner', Icon: Heart, color: '#e11d48' },
+    { id: 'parents', title: 'Parents', Icon: Users, color: '#0d9488' },
+    { id: 'education', title: 'Education & Occupation', Icon: GraduationCap, color: '#2563eb' },
+    { id: 'work', title: 'Work History', Icon: Briefcase, color: '#ca8a04' },
     { id: 'children', title: 'Children', Icon: Baby, color: '#f97316' },
-    { id: 'siblings', title: 'Brothers & Sisters', Icon: UserPlus, color: '#059669' },
+    { id: 'siblings', title: 'Siblings', Icon: UserPlus, color: '#059669' },
     { id: 'addresses', title: 'Address History', Icon: Home, color: '#7c3aed' },
     { id: 'travel', title: 'Travel History', Icon: Plane, color: '#0284c7' },
     { id: 'relatives', title: 'Relatives in Canada', Icon: UsersRound, color: '#dc2626' },
-    { id: 'language', title: 'Language Test Scores', Icon: Languages, color: '#4f46e5' },
+    { id: 'language', title: 'Language', Icon: Languages, color: '#4f46e5' },
+    { id: 'background', title: 'Background', Icon: Shield, color: '#475569' },
     { id: 'declarations', title: 'Declarations & Consent', Icon: Scale, color: '#64748b' },
 ];
 
 const ALL_FIELDS = {
-    personal: ['firstName', 'lastName', 'dob', 'placeOfBirth', 'nationality', 'gender', 'eyeColour', 'height'],
-    canada: ['appliedBefore', 'appliedBeforeDetails', 'refusedBefore', 'refusedBeforeDetails', 'medicalExamDone', 'medicalExamDetails', 'firstEntryDate', 'placeOfEntry', 'purposeOfVisit', 'lastEntryDate', 'lastEntryPlace', 'biometricsDone'],
-    passport: ['passportNumber', 'passportIssueDate', 'passportExpiryDate', 'passportCountry', 'maritalStatus'],
-    spouse: ['spouseMarriageDate', 'spouseFirstName', 'spouseLastName', 'spouseDob', 'spousePlaceOfBirth', 'spouseOccupation', 'spouseAddress', 'previouslyMarried', 'prevMarriageDate', 'prevMarriageEndDate', 'prevSpouseFirstName', 'prevSpouseLastName', 'prevSpouseDob'],
-    parents: ['motherFirstName', 'motherLastName', 'motherDob', 'motherDeathDate', 'motherPlaceOfBirth', 'motherOccupation', 'motherAddress', 'fatherFirstName', 'fatherLastName', 'fatherDob', 'fatherDeathDate', 'fatherPlaceOfBirth', 'fatherOccupation', 'fatherAddress'],
-    language: ['testType', 'ieltsListening', 'ieltsReading', 'ieltsWriting', 'ieltsSpeaking', 'ieltsOverall'],
+    personal: ['firstName', 'lastName', 'aliasFamilyName', 'aliasGivenName', 'dob', 'placeOfBirth', 'countryOfBirth', 'nationality', 'countryOfResidence', 'residenceStatus', 'gender', 'nativeLanguage', 'eyeColour', 'height'],
+    contact: ['email', 'phone', 'faxNumber', 'currentAddress', 'currentCity', 'currentProvince', 'currentPostalCode', 'currentCountry', 'residentialAddressSameAsMailing', 'residentialAddress', 'residentialCity', 'residentialProvince', 'residentialPostalCode', 'residentialCountry'],
+    passport: ['passportNumber', 'passportIssueDate', 'passportExpiryDate', 'passportCountry', 'nationalIdentityNumber', 'maritalStatus', 'usCitizenOrPR', 'usVisaNumber', 'usVisaExpiryDate'],
+    canada: ['appliedBefore', 'appliedBeforeDetails', 'refusedBefore', 'refusedBeforeDetails', 'medicalExamDone', 'medicalExamDetails', 'biometricsDone', 'firstEntryDate', 'placeOfEntry', 'lastEntryDate', 'lastEntryPlace', 'purposeOfVisit', 'stayDuration', 'intendedEntryDate', 'fundsAvailable', 'contactInCanadaName', 'contactInCanadaRelation', 'contactInCanadaAddress', 'contactInCanadaPhone', 'contactInCanadaEmail'],
+    spouse: ['spouseMarriageDate', 'spouseFirstName', 'spouseLastName', 'spouseDob', 'spousePlaceOfBirth', 'spouseCountryOfBirth', 'spouseNationality', 'spousePassportNumber', 'spouseOccupation', 'spouseAddress', 'spouseEmail', 'previouslyMarried', 'prevMarriageDate', 'prevMarriageEndDate', 'prevSpouseFirstName', 'prevSpouseLastName', 'prevSpouseDob'],
+    parents: ['motherFirstName', 'motherLastName', 'motherDob', 'motherDeathDate', 'motherPlaceOfBirth', 'motherCountryOfBirth', 'motherNationality', 'motherMaritalStatus', 'motherOccupation', 'motherAddress', 'fatherFirstName', 'fatherLastName', 'fatherDob', 'fatherDeathDate', 'fatherPlaceOfBirth', 'fatherCountryOfBirth', 'fatherNationality', 'fatherMaritalStatus', 'fatherOccupation', 'fatherAddress'],
+    education: ['highestEducation', 'currentOccupation', 'currentEmployer', 'yearsInOccupation', 'intendedOccupation'],
+    language: ['nativeLanguageAbility', 'englishAbility', 'frenchAbility', 'testType', 'ieltsListening', 'ieltsReading', 'ieltsWriting', 'ieltsSpeaking', 'ieltsOverall'],
+    background: ['militaryService', 'militaryServiceDetails', 'politicalAssociation', 'politicalAssociationDetails', 'governmentPosition', 'governmentPositionDetails', 'removedFromCountry', 'removedDetails'],
     declarations: ['criminalHistory', 'criminalDetails', 'healthIssues', 'healthDetails', 'consent'],
 };
 const ARRAY_FIELDS = ['education', 'work', 'children', 'siblings', 'addresses', 'travel', 'relatives'];
@@ -234,8 +239,11 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
 
     const [selectedDocId, setSelectedDocId] = useState(null);
     const [showDocPanel, setShowDocPanel] = useState(false);
-    const [showClientData, setShowClientData] = useState(false);
-    const [clientDataLocal, setClientDataLocal] = useState([]);
+    const [reverifyHistory, setReverifyHistory] = useState([]);
+    const [showReverifyHistory, setShowReverifyHistory] = useState(false);
+    const [sendingReverify, setSendingReverify] = useState(false);
+    const [pendingReverifyId, setPendingReverifyId] = useState(null);
+    const [saveResult, setSaveResult] = useState(null);
 
     const canVerify = !userRole || userRole === 'Admin' || userRole === 'Case Manager';
 
@@ -243,6 +251,11 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     useEffect(() => {
         if (clientId) {
             api.getPIFVerifications(clientId).then(setFieldVerifications).catch(() => {});
+            api.getPIFReverificationHistory(clientId).then(rows => {
+                setReverifyHistory(rows || []);
+                const pending = (rows || []).find(r => r.status === 'pending');
+                if (pending) setPendingReverifyId(pending.id);
+            }).catch(() => {});
         }
     }, [clientId]);
 
@@ -272,18 +285,6 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
         }
     };
 
-    // Fetch client data for the collapsible section
-    useEffect(() => {
-        if (clientId) {
-            api.getClientData(clientId).then(setClientDataLocal).catch(() => setClientDataLocal([]));
-        }
-    }, [clientId]);
-
-    const handleSaveClientData = async () => {
-        try {
-            await api.updateClientData(clientId, clientDataLocal);
-        } catch (e) { console.error('Failed to save client data:', e); }
-    };
 
     // Verification progress
     const verificationProgress = useMemo(() => {
@@ -318,16 +319,41 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     const saveEdits = async () => {
         if (!clientId || !editData) return;
         setSaving(true);
+        setSaveResult(null);
         try {
-            await api.updatePIFData(clientId, editData);
+            const result = await api.updatePIFData(clientId, editData);
             setEditing(false);
             setEditData(null);
             if (onDataSaved) onDataSaved(editData);
+            if (result.changes_detected) {
+                setPendingReverifyId(result.reverification_id);
+                setSaveResult({ changed: result.changed_count, reverificationId: result.reverification_id });
+                // Refresh history
+                api.getPIFReverificationHistory(clientId).then(rows => setReverifyHistory(rows || [])).catch(() => {});
+            }
         } catch (e) {
             console.error('Failed to save PIF edits:', e);
             alert('Failed to save changes. Please try again.');
         }
         setSaving(false);
+    };
+
+    // Send re-verification request
+    const sendReverification = async () => {
+        if (!clientId) return;
+        setSendingReverify(true);
+        try {
+            const result = await api.sendPIFReverification(clientId);
+            alert(result.message || 'Re-verification request sent!');
+            setPendingReverifyId(null);
+            setSaveResult(null);
+            // Refresh history
+            api.getPIFReverificationHistory(clientId).then(rows => setReverifyHistory(rows || [])).catch(() => {});
+        } catch (e) {
+            console.error('Failed to send re-verification:', e);
+            alert('Failed to send re-verification request.');
+        }
+        setSendingReverify(false);
     };
 
     // Update a scalar field
@@ -413,39 +439,100 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
         switch (step.id) {
             case 'personal': return (
                 <div className="pv-grid">
-                    <FieldCard {...fieldProps('firstName', { label: 'First Name' })} />
-                    <FieldCard {...fieldProps('lastName', { label: 'Last Name' })} />
+                    <FieldCard {...fieldProps('firstName', { label: 'First / Given Name(s)' })} />
+                    <FieldCard {...fieldProps('lastName', { label: 'Last / Family Name' })} />
+                    <FieldCard {...fieldProps('aliasFamilyName', { label: 'Alias / Former Family Name' })} />
+                    <FieldCard {...fieldProps('aliasGivenName', { label: 'Alias / Former Given Name' })} />
                     <FieldCard {...fieldProps('dob', { label: 'Date of Birth', type: 'date' })} />
-                    <FieldCard {...fieldProps('placeOfBirth', { label: 'Place of Birth' })} />
-                    <FieldCard {...fieldProps('nationality', { label: 'Nationality' })} />
-                    <FieldCard {...fieldProps('gender', { label: 'Gender' })} />
+                    <FieldCard {...fieldProps('placeOfBirth', { label: 'City / Place of Birth' })} />
+                    <FieldCard {...fieldProps('countryOfBirth', { label: 'Country of Birth' })} />
+                    <FieldCard {...fieldProps('nationality', { label: 'Nationality / Citizenship' })} />
+                    <FieldCard {...fieldProps('countryOfResidence', { label: 'Country of Residence' })} />
+                    <FieldCard {...fieldProps('residenceStatus', { label: 'Immigration Status' })} />
+                    <FieldCard {...fieldProps('gender', { label: 'Gender / Sex' })} />
+                    <FieldCard {...fieldProps('nativeLanguage', { label: 'Native Language' })} />
                     <FieldCard {...fieldProps('eyeColour', { label: 'Eye Colour' })} />
-                    <FieldCard {...fieldProps('height', { label: 'Height (ft, in)' })} />
+                    <FieldCard {...fieldProps('height', { label: 'Height (cm)' })} />
                 </div>
             );
-            case 'canada': return (
-                <div className="pv-grid">
-                    <RadioChips label="Have you applied to Canada before?" value={d.appliedBefore} options={['Yes', 'No']} fieldKey="appliedBefore" editing={editing} onChange={setField} />
-                    {d.appliedBefore === 'Yes' && <FieldCard {...fieldProps('appliedBeforeDetails', { label: 'Details of previous application', type: 'textarea' })} />}
-                    <RadioChips label="Have you ever been refused a visa/permit?" value={d.refusedBefore} options={['Yes', 'No']} fieldKey="refusedBefore" editing={editing} onChange={setField} />
-                    {d.refusedBefore === 'Yes' && <FieldCard {...fieldProps('refusedBeforeDetails', { label: 'Details of refusal', type: 'textarea' })} />}
-                    <RadioChips label="Medical exam done (last 12 months)?" value={d.medicalExamDone} options={['Yes', 'No']} fieldKey="medicalExamDone" editing={editing} onChange={setField} />
-                    {d.medicalExamDone === 'Yes' && <FieldCard {...fieldProps('medicalExamDetails', { label: 'Medical exam details' })} />}
-                    <FieldCard {...fieldProps('firstEntryDate', { label: 'First Entry Date in Canada' })} />
-                    <FieldCard {...fieldProps('placeOfEntry', { label: 'Place of Entry' })} />
-                    <FieldCard {...fieldProps('purposeOfVisit', { label: 'Purpose of Visit' })} />
-                    <FieldCard {...fieldProps('lastEntryDate', { label: 'Last Entry Date' })} />
-                    <FieldCard {...fieldProps('lastEntryPlace', { label: 'Last Entry Place' })} />
-                    <RadioChips label="Have you done your biometrics?" value={d.biometricsDone} options={['Yes', 'No']} fieldKey="biometricsDone" editing={editing} onChange={setField} />
+            case 'contact': return (
+                <div>
+                    <SectionDivider title="Primary Contact" />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('email', { label: 'Email Address' })} />
+                        <FieldCard {...fieldProps('phone', { label: 'Phone Number' })} />
+                        <FieldCard {...fieldProps('faxNumber', { label: 'Fax Number' })} />
+                    </div>
+                    <SectionDivider title="Current Mailing Address" />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('currentAddress', { label: 'Street Address' })} />
+                        <FieldCard {...fieldProps('currentCity', { label: 'City' })} />
+                        <FieldCard {...fieldProps('currentProvince', { label: 'Province / State' })} />
+                        <FieldCard {...fieldProps('currentPostalCode', { label: 'Postal / ZIP Code' })} />
+                        <FieldCard {...fieldProps('currentCountry', { label: 'Country' })} />
+                    </div>
+                    <SectionDivider title="Residential Address" />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('residentialAddressSameAsMailing', { label: 'Same as Mailing?' })} />
+                        {d.residentialAddressSameAsMailing === 'No' && <>
+                            <FieldCard {...fieldProps('residentialAddress', { label: 'Street Address' })} />
+                            <FieldCard {...fieldProps('residentialCity', { label: 'City' })} />
+                            <FieldCard {...fieldProps('residentialProvince', { label: 'Province / State' })} />
+                            <FieldCard {...fieldProps('residentialPostalCode', { label: 'Postal / ZIP Code' })} />
+                            <FieldCard {...fieldProps('residentialCountry', { label: 'Country' })} />
+                        </>}
+                    </div>
                 </div>
             );
             case 'passport': return (
                 <div className="pv-grid">
                     <FieldCard {...fieldProps('passportNumber', { label: 'Passport Number' })} />
+                    <FieldCard {...fieldProps('passportCountry', { label: 'Country of Issue' })} />
                     <FieldCard {...fieldProps('passportIssueDate', { label: 'Issue Date' })} />
                     <FieldCard {...fieldProps('passportExpiryDate', { label: 'Expiry Date' })} />
-                    <FieldCard {...fieldProps('passportCountry', { label: 'Country of Issue' })} />
+                    <FieldCard {...fieldProps('nationalIdentityNumber', { label: 'National Identity Doc No.' })} />
                     <FieldCard {...fieldProps('maritalStatus', { label: 'Marital Status' })} />
+                    <RadioChips label="US Citizen or Permanent Resident?" value={d.usCitizenOrPR} options={['Yes', 'No']} fieldKey="usCitizenOrPR" editing={editing} onChange={setField} />
+                    {d.usCitizenOrPR === 'Yes' && <>
+                        <FieldCard {...fieldProps('usVisaNumber', { label: 'US Visa / Green Card Number' })} />
+                        <FieldCard {...fieldProps('usVisaExpiryDate', { label: 'US Visa Expiry Date' })} />
+                    </>}
+                </div>
+            );
+            case 'canada': return (
+                <div>
+                    <SectionDivider title="Previous Applications & Entry" />
+                    <div className="pv-grid">
+                        <RadioChips label="Have you applied to Canada before?" value={d.appliedBefore} options={['Yes', 'No']} fieldKey="appliedBefore" editing={editing} onChange={setField} />
+                        {d.appliedBefore === 'Yes' && <FieldCard {...fieldProps('appliedBeforeDetails', { label: 'Details of previous application', type: 'textarea' })} />}
+                        <RadioChips label="Have you ever been refused a visa/permit?" value={d.refusedBefore} options={['Yes', 'No']} fieldKey="refusedBefore" editing={editing} onChange={setField} />
+                        {d.refusedBefore === 'Yes' && <FieldCard {...fieldProps('refusedBeforeDetails', { label: 'Details of refusal', type: 'textarea' })} />}
+                        <RadioChips label="Medical exam done (last 12 months)?" value={d.medicalExamDone} options={['Yes', 'No']} fieldKey="medicalExamDone" editing={editing} onChange={setField} />
+                        {d.medicalExamDone === 'Yes' && <FieldCard {...fieldProps('medicalExamDetails', { label: 'Medical exam details' })} />}
+                        <RadioChips label="Have you done your biometrics?" value={d.biometricsDone} options={['Yes', 'No']} fieldKey="biometricsDone" editing={editing} onChange={setField} />
+                    </div>
+                    <SectionDivider title="Previous Entries to Canada" />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('firstEntryDate', { label: 'First Entry Date' })} />
+                        <FieldCard {...fieldProps('placeOfEntry', { label: 'Place of First Entry' })} />
+                        <FieldCard {...fieldProps('lastEntryDate', { label: 'Last Entry Date' })} />
+                        <FieldCard {...fieldProps('lastEntryPlace', { label: 'Last Entry Place' })} />
+                    </div>
+                    <SectionDivider title="Details of This Visit" />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('purposeOfVisit', { label: 'Purpose of Visit' })} />
+                        <FieldCard {...fieldProps('stayDuration', { label: 'How Long to Stay' })} />
+                        <FieldCard {...fieldProps('intendedEntryDate', { label: 'Intended Entry Date' })} />
+                        <FieldCard {...fieldProps('fundsAvailable', { label: 'Funds Available (CAD)' })} />
+                    </div>
+                    <SectionDivider title="Contact Person in Canada" />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('contactInCanadaName', { label: 'Name' })} />
+                        <FieldCard {...fieldProps('contactInCanadaRelation', { label: 'Relationship' })} />
+                        <FieldCard {...fieldProps('contactInCanadaAddress', { label: 'Address in Canada' })} />
+                        <FieldCard {...fieldProps('contactInCanadaPhone', { label: 'Phone' })} />
+                        <FieldCard {...fieldProps('contactInCanadaEmail', { label: 'Email' })} />
+                    </div>
                 </div>
             );
             case 'spouse': return d.maritalStatus === 'Single' ? (
@@ -459,8 +546,12 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         <FieldCard {...fieldProps('spouseLastName', { label: 'Last Name' })} />
                         <FieldCard {...fieldProps('spouseDob', { label: 'Date of Birth' })} />
                         <FieldCard {...fieldProps('spousePlaceOfBirth', { label: 'Place of Birth' })} />
+                        <FieldCard {...fieldProps('spouseCountryOfBirth', { label: 'Country of Birth' })} />
+                        <FieldCard {...fieldProps('spouseNationality', { label: 'Nationality' })} />
+                        <FieldCard {...fieldProps('spousePassportNumber', { label: 'Passport Number' })} />
                         <FieldCard {...fieldProps('spouseOccupation', { label: 'Occupation' })} />
-                        <FieldCard {...fieldProps('spouseAddress', { label: 'Spouse Address' })} />
+                        <FieldCard {...fieldProps('spouseEmail', { label: 'Email' })} />
+                        <FieldCard {...fieldProps('spouseAddress', { label: 'Current Address' })} />
                     </div>
                     <SectionDivider title="Previous Marriage" />
                     <RadioChips label="Were you previously married?" value={d.previouslyMarried} options={['Yes', 'No']} fieldKey="previouslyMarried" editing={editing} onChange={setField} />
@@ -484,6 +575,9 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         <FieldCard {...fieldProps('motherDob', { label: 'Date of Birth' })} />
                         <FieldCard {...fieldProps('motherDeathDate', { label: 'Death Date' })} />
                         <FieldCard {...fieldProps('motherPlaceOfBirth', { label: 'Place of Birth' })} />
+                        <FieldCard {...fieldProps('motherCountryOfBirth', { label: 'Country of Birth' })} />
+                        <FieldCard {...fieldProps('motherNationality', { label: 'Nationality / Citizenship' })} />
+                        <FieldCard {...fieldProps('motherMaritalStatus', { label: 'Marital Status' })} />
                         <FieldCard {...fieldProps('motherOccupation', { label: 'Occupation' })} />
                         <FieldCard {...fieldProps('motherAddress', { label: 'Current Address & Email' })} />
                     </div>
@@ -494,15 +588,33 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         <FieldCard {...fieldProps('fatherDob', { label: 'Date of Birth' })} />
                         <FieldCard {...fieldProps('fatherDeathDate', { label: 'Death Date' })} />
                         <FieldCard {...fieldProps('fatherPlaceOfBirth', { label: 'Place of Birth' })} />
+                        <FieldCard {...fieldProps('fatherCountryOfBirth', { label: 'Country of Birth' })} />
+                        <FieldCard {...fieldProps('fatherNationality', { label: 'Nationality / Citizenship' })} />
+                        <FieldCard {...fieldProps('fatherMaritalStatus', { label: 'Marital Status' })} />
                         <FieldCard {...fieldProps('fatherOccupation', { label: 'Occupation' })} />
                         <FieldCard {...fieldProps('fatherAddress', { label: 'Current Address & Email' })} />
                     </div>
                 </div>
             );
-            case 'education': return <ArraySection sectionKey="education" rows={d.education} fields={[
-                { key: 'from', label: 'From' }, { key: 'to', label: 'To' },
-                { key: 'institute', label: 'Institute' }, { key: 'city', label: 'City' }, { key: 'field', label: 'Field of Study' }
-            ]} label="Education" getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />;
+            case 'education': return (
+                <div>
+                    <SectionDivider title="Current Education & Occupation" />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('highestEducation', { label: 'Highest Level of Education' })} />
+                        <FieldCard {...fieldProps('currentOccupation', { label: 'Current Occupation' })} />
+                        <FieldCard {...fieldProps('currentEmployer', { label: 'Current Employer' })} />
+                        <FieldCard {...fieldProps('yearsInOccupation', { label: 'Years in Occupation' })} />
+                        <FieldCard {...fieldProps('intendedOccupation', { label: 'Intended Occupation in Canada' })} />
+                    </div>
+                    <SectionDivider title="Education History" />
+                    <ArraySection sectionKey="education" rows={d.education} fields={[
+                        { key: 'from', label: 'From' }, { key: 'to', label: 'To' },
+                        { key: 'institute', label: 'Institute' }, { key: 'city', label: 'City' },
+                        { key: 'country', label: 'Country' }, { key: 'field', label: 'Field of Study' },
+                        { key: 'degree', label: 'Degree / Diploma' }
+                    ]} label="Education" getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />
+                </div>
+            );
             case 'work': return <ArraySection sectionKey="work" rows={d.work} fields={[
                 { key: 'from', label: 'From' }, { key: 'to', label: 'To' },
                 { key: 'jobTitle', label: 'Job Title' }, { key: 'city', label: 'City' },
@@ -533,25 +645,47 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
             case 'relatives': return <ArraySection sectionKey="relatives" rows={d.relatives} fields={[
                 { key: 'firstName', label: 'First Name' }, { key: 'lastName', label: 'Last Name' },
                 { key: 'city', label: 'City' }, { key: 'relation', label: 'Relation' },
-                { key: 'phone', label: 'Phone Number' }, { key: 'email', label: 'Email' }, { key: 'yearsInCanada', label: 'Years in Canada' }
+                { key: 'phone', label: 'Phone Number' }, { key: 'email', label: 'Email' },
+                { key: 'yearsInCanada', label: 'Years in Canada' }, { key: 'immigrationStatus', label: 'Immigration Status' }
             ]} label="Relative" optional getVerifyProps={getVerifyProps} editing={editing} onRowChange={setRowField} />;
             case 'language': return (
+                <div>
+                    <SectionDivider title="Language Abilities" />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('nativeLanguageAbility', { label: 'Native Language' })} />
+                        <FieldCard {...fieldProps('englishAbility', { label: 'English Ability' })} />
+                        <FieldCard {...fieldProps('frenchAbility', { label: 'French Ability' })} />
+                    </div>
+                    <SectionDivider title="Language Test Scores" />
+                    <div className="pv-grid">
+                        <FieldCard {...fieldProps('testType', { label: 'Test Type' })} />
+                        <FieldCard {...fieldProps('ieltsListening', { label: 'Listening' })} />
+                        <FieldCard {...fieldProps('ieltsReading', { label: 'Reading' })} />
+                        <FieldCard {...fieldProps('ieltsWriting', { label: 'Writing' })} />
+                        <FieldCard {...fieldProps('ieltsSpeaking', { label: 'Speaking' })} />
+                        <FieldCard {...fieldProps('ieltsOverall', { label: 'Overall' })} />
+                    </div>
+                </div>
+            );
+            case 'background': return (
                 <div className="pv-grid">
-                    <FieldCard {...fieldProps('testType', { label: 'Test Type' })} />
-                    <FieldCard {...fieldProps('ieltsListening', { label: 'Listening' })} />
-                    <FieldCard {...fieldProps('ieltsReading', { label: 'Reading' })} />
-                    <FieldCard {...fieldProps('ieltsWriting', { label: 'Writing' })} />
-                    <FieldCard {...fieldProps('ieltsSpeaking', { label: 'Speaking' })} />
-                    <FieldCard {...fieldProps('ieltsOverall', { label: 'Overall' })} />
+                    <RadioChips label="a) Military / militia / civil defence service?" value={d.militaryService} options={['Yes', 'No']} fieldKey="militaryService" editing={editing} onChange={setField} />
+                    {d.militaryService === 'Yes' && <FieldCard {...fieldProps('militaryServiceDetails', { label: 'Military service details', type: 'textarea' })} />}
+                    <RadioChips label="b) Political party or organization?" value={d.politicalAssociation} options={['Yes', 'No']} fieldKey="politicalAssociation" editing={editing} onChange={setField} />
+                    {d.politicalAssociation === 'Yes' && <FieldCard {...fieldProps('politicalAssociationDetails', { label: 'Association details', type: 'textarea' })} />}
+                    <RadioChips label="c) Government position held?" value={d.governmentPosition} options={['Yes', 'No']} fieldKey="governmentPosition" editing={editing} onChange={setField} />
+                    {d.governmentPosition === 'Yes' && <FieldCard {...fieldProps('governmentPositionDetails', { label: 'Position details', type: 'textarea' })} />}
+                    <RadioChips label="d) Detained, incarcerated, or deported?" value={d.removedFromCountry} options={['Yes', 'No']} fieldKey="removedFromCountry" editing={editing} onChange={setField} />
+                    {d.removedFromCountry === 'Yes' && <FieldCard {...fieldProps('removedDetails', { label: 'Removal details', type: 'textarea' })} />}
                 </div>
             );
             case 'declarations': return (
                 <div>
                     <div className="pv-declarations-box">
-                        <RadioChips label="a) Criminal history / charges?" value={d.criminalHistory} options={['Yes', 'No']} fieldKey="criminalHistory" editing={editing} onChange={setField} />
+                        <RadioChips label="e) Criminal history / charges?" value={d.criminalHistory} options={['Yes', 'No']} fieldKey="criminalHistory" editing={editing} onChange={setField} />
                         {d.criminalHistory === 'Yes' && <FieldCard {...fieldProps('criminalDetails', { label: 'Details', type: 'textarea' })} />}
                         <div style={{ marginTop: 12 }} />
-                        <RadioChips label="b) Disease or physical/mental disorder?" value={d.healthIssues} options={['Yes', 'No']} fieldKey="healthIssues" editing={editing} onChange={setField} />
+                        <RadioChips label="f) Disease or physical/mental disorder?" value={d.healthIssues} options={['Yes', 'No']} fieldKey="healthIssues" editing={editing} onChange={setField} />
                         {d.healthIssues === 'Yes' && <FieldCard {...fieldProps('healthDetails', { label: 'Details', type: 'textarea' })} />}
                     </div>
                     <div className={`pv-consent-card ${d.consent ? 'agreed' : 'pending'}`}>
@@ -561,6 +695,11 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                             <div className="pv-consent-desc">{d.consent ? 'Client has agreed to the declaration and consented to information sharing.' : 'Client has NOT provided consent yet.'}</div>
                         </div>
                     </div>
+                    {editing && (
+                        <div style={{ marginTop: 12, padding: '10px 14px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, fontSize: 13, color: '#0369a1', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Shield size={14} /> Consent must be provided by the client directly. Use "Request Re-verification" to ask the client to review and re-consent.
+                        </div>
+                    )}
                 </div>
             );
             default: return null;
@@ -679,12 +818,43 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         ) : (
                             <button className="pv-toolbar-btn edit" onClick={startEdit}><Pencil size={14} /> Edit</button>
                         )}
+                        {/* Re-verification button */}
+                        {!editing && pendingReverifyId && (
+                            <button className="pv-toolbar-btn" onClick={sendReverification} disabled={sendingReverify}
+                                style={{ color: '#d97706', borderColor: '#d9770630', fontWeight: 600 }}
+                                title="Send re-verification request to client">
+                                {sendingReverify ? <Loader2 size={14} className="spin" /> : <Send size={14} />} Request Re-verification
+                            </button>
+                        )}
                         {verifyStatus === 'mismatch' && <div className="pv-verify-badge warn"><ShieldAlert size={14} /> Issues</div>}
                         {verifyStatus === 'verified' && <div className="pv-verify-badge ok"><ShieldCheck size={14} /> Verified</div>}
                     </div>
                 </div>
 
                 <div className="pv-main-body">
+                    {/* Save result banner — changes detected */}
+                    {saveResult && (
+                        <div className="pv-alert-banner" style={{ background: '#fffbeb', borderColor: '#fbbf24', color: '#92400e' }}>
+                            <AlertTriangle size={14} />
+                            <div>
+                                <strong>{saveResult.changed} field{saveResult.changed > 1 ? 's' : ''} changed.</strong>
+                                <span> Client consent has been invalidated. </span>
+                                <button onClick={sendReverification} disabled={sendingReverify}
+                                    style={{ background: '#d97706', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 12, marginLeft: 8 }}>
+                                    {sendingReverify ? 'Sending...' : 'Send Re-verification Now'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Pending re-verification banner */}
+                    {!saveResult && reverifyHistory.length > 0 && reverifyHistory[0].status === 'sent' && (
+                        <div className="pv-alert-banner" style={{ background: '#fffbeb', borderColor: '#fbbf24', color: '#92400e' }}>
+                            <Clock size={14} />
+                            <div><strong>Re-verification requested.</strong><span> Waiting for client to review changes and provide consent.</span></div>
+                        </div>
+                    )}
+
                     {/* Editing banner */}
                     {editing && (
                         <div className="pv-alert-banner edit">
@@ -730,43 +900,49 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
             </div>
         </div>
 
-                    {/* Collapsible Client Data section */}
-                    <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                        <button onClick={() => setShowClientData(!showClientData)}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                                background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0',
-                                fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)',
-                            }}>
-                            <Key size={14} />
-                            Raw Client Data ({clientDataLocal.length} fields)
-                            {showClientData ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
-                        {showClientData && (
-                            <div style={{ paddingTop: 8 }}>
-                                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                                    <button className="btn btn-ghost btn-sm" onClick={() => setClientDataLocal(p => [...p, { field_key: '', field_value: '', source: 'manual' }])}
-                                        style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <Plus size={12} /> Add Field
-                                    </button>
-                                    <button className="btn btn-primary btn-sm" onClick={handleSaveClientData}
-                                        style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                        <Save size={12} /> Save
-                                    </button>
+                    {/* Re-verification History */}
+                    {reverifyHistory.length > 0 && (
+                        <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+                            <button onClick={() => setShowReverifyHistory(!showReverifyHistory)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                                    background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0',
+                                    fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)',
+                                }}>
+                                <History size={14} />
+                                Re-verification History ({reverifyHistory.length})
+                                {showReverifyHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                            {showReverifyHistory && (
+                                <div style={{ paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    {reverifyHistory.map(r => {
+                                        const fields = r.changed_fields || {};
+                                        const count = Object.keys(fields).length;
+                                        const statusColors = { pending: '#f59e0b', sent: '#3b82f6', confirmed: '#10b981', superseded: '#94a3b8' };
+                                        return (
+                                            <div key={r.id} style={{ padding: '10px 12px', background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                    <span style={{ fontWeight: 600 }}>{r.changed_by_name}</span>
+                                                    <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: `${statusColors[r.status]}18`, color: statusColors[r.status], textTransform: 'uppercase' }}>
+                                                        {r.status}
+                                                    </span>
+                                                </div>
+                                                <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                                                    {count} field{count > 1 ? 's' : ''} changed · {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                </div>
+                                                {r.consent_at && (
+                                                    <div style={{ color: '#10b981', fontSize: 11, marginTop: 2 }}>
+                                                        Client confirmed {new Date(r.consent_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                                {clientDataLocal.map((item, i) => (
-                                    <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 4, alignItems: 'center' }}>
-                                        <input className="form-input" value={item.field_key} placeholder="field_key" style={{ flex: 1, fontSize: 11, padding: '4px 8px' }}
-                                            onChange={e => { const a=[...clientDataLocal]; a[i]={...a[i],field_key:e.target.value}; setClientDataLocal(a); }} />
-                                        <input className="form-input" value={item.field_value} placeholder="value" style={{ flex: 1, fontSize: 11, padding: '4px 8px' }}
-                                            onChange={e => { const a=[...clientDataLocal]; a[i]={...a[i],field_value:e.target.value}; setClientDataLocal(a); }} />
-                                        <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{item.source||'manual'}</span>
-                                        <button className="btn btn-danger btn-sm" style={{ padding: '2px 6px' }} onClick={() => setClientDataLocal(p=>p.filter((_,j)=>j!==i))}><X size={12} /></button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                            )}
+                        </div>
+                    )}
+
 
             {/* ── Document Viewer Drawer (slide-over) ──────────── */}
             <div className={`pv-doc-backdrop ${showDocPanel ? 'open' : ''}`} onClick={() => setShowDocPanel(false)} />
