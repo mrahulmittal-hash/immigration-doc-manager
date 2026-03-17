@@ -151,6 +151,17 @@ export const api = {
     getFilledFormData: (filledFormId) => request(`/ircc-forms/filled/${filledFormId}/data`),
     updateFilledFormData: (filledFormId, fields) => request(`/ircc-forms/filled/${filledFormId}/data`, { method: 'PUT', body: JSON.stringify({ fields }) }),
 
+    // Custom form upload + auto-fill
+    uploadAndFillForm: (clientId, formData) => {
+      const token = localStorage.getItem('token');
+      return fetch(`${BASE}/clients/${clientId}/ircc-forms/upload-and-fill`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData, // FormData — no Content-Type header (browser sets multipart boundary)
+      }).then(r => r.json());
+    },
+    getClientCustomForms: (clientId) => request(`/clients/${clientId}/ircc-forms/custom`),
+
     // IRCC Updates
     getIRCCUpdates: (category, limit) => request(`/ircc-updates?${category ? `category=${category}&` : ''}limit=${limit || 50}`),
     triggerIRCCScrape: () => request('/ircc-updates/scrape', { method: 'POST' }),

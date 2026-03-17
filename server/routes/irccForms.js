@@ -2,10 +2,30 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { prepareAll, prepareGet, prepareRun } = require('../database');
 const { getFormsForVisaType, getSupportedVisaTypes, buildFormDataMap } = require('../services/irccFormTemplates');
 const { fillPDFForm, analyzeFormFields } = require('../services/pdfFiller');
+
+// Multer setup for custom form uploads
+const CUSTOM_FORMS_DIR = path.join(__dirname, '..', 'uploads', 'custom-forms');
+if (!fs.existsSync(CUSTOM_FORMS_DIR)) fs.mkdirSync(CUSTOM_FORMS_DIR, { recursive: true });
+
+const customFormUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, CUSTOM_FORMS_DIR),
+    filename: (req, file, cb) => {
+      const safe = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      cb(null, `${Date.now()}-${safe}`);
+    }
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (path.extname(file.originalname).toLowerCase() === '.pdf') cb(null, true);
+    else cb(new Error('Only PDF files are allowed'));
+  }
+});
 
 /**
  * Build comprehensive client data map from all sources
@@ -27,19 +47,35 @@ async function buildFullClientDataMap(clientId) {
   if (client.passport_number) dataMap['passport_number'] = client.passport_number;
   if (client.visa_type) dataMap['visa_type'] = client.visa_type;
 
-  // PIF data
+  // PIF data (flat object: { firstName, lastName, dob, ... })
   const pifSubmission = await prepareGet('SELECT form_data FROM pif_submissions WHERE client_id = ?', clientId);
   if (pifSubmission?.form_data) {
     try {
       const pifData = JSON.parse(pifSubmission.form_data);
-      // Flatten PIF sections into data map
-      for (const [section, fields] of Object.entries(pifData)) {
-        if (typeof fields === 'object' && fields !== null) {
-          for (const [key, value] of Object.entries(fields)) {
-            if (value && typeof value === 'string' && value.trim()) {
-              dataMap[key] = value.trim();
+      for (const [key, value] of Object.entries(pifData)) {
+        if (value && typeof value === 'string' && value.trim()) {
+          dataMap[key] = value.trim();
+        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          // Handle sectioned PIF data format { section: { field: value } }
+          for (const [subKey, subVal] of Object.entries(value)) {
+            if (subVal && typeof subVal === 'string' && subVal.trim()) {
+              dataMap[subKey] = subVal.trim();
             }
           }
+        }
+      }
+
+      // Also create standard field aliases from PIF camelCase keys
+      const pifAliases = {
+        firstName: 'first_name', lastName: 'last_name', dob: 'date_of_birth',
+        placeOfBirth: 'place_of_birth', passportNumber: 'passport_number',
+        passportIssueDate: 'date_of_issue', passportExpiryDate: 'date_of_expiry',
+        passportCountry: 'country_of_birth', maritalStatus: 'marital_status',
+        gender: 'sex', purposeOfVisit: 'purpose_of_visit',
+      };
+      for (const [pifKey, stdKey] of Object.entries(pifAliases)) {
+        if (dataMap[pifKey] && !dataMap[stdKey]) {
+          dataMap[stdKey] = dataMap[pifKey];
         }
       }
     } catch {}
@@ -50,6 +86,25 @@ async function buildFullClientDataMap(clientId) {
   for (const item of clientData) {
     if (item.field_value && item.field_value.trim()) {
       dataMap[item.field_key] = item.field_value;
+      // Strip section prefix (e.g., "personal.given_name" → "given_name")
+      if (item.field_key.includes('.')) {
+        const bareKey = item.field_key.split('.').pop();
+        if (!dataMap[bareKey]) {
+          dataMap[bareKey] = item.field_value;
+        }
+      }
+    }
+  }
+
+  // Map common bare keys to standard field names for XFA matching
+  const bareAliases = {
+    given_name: 'first_name', family_name: 'last_name',
+    dob: 'date_of_birth', citizenship: 'nationality',
+    street: 'address', postal_code: 'postal_code',
+  };
+  for (const [bare, std] of Object.entries(bareAliases)) {
+    if (dataMap[bare] && !dataMap[std]) {
+      dataMap[std] = dataMap[bare];
     }
   }
 
@@ -657,5 +712,112 @@ async function generateSummaryPDF(res, template, dataMap, clientId, client) {
   const result = await createSummaryPDF(template, dataMap, clientId, client);
   res.json(result);
 }
+
+// POST /clients/:id/ircc-forms/upload-and-fill — Upload a blank IRCC form and auto-fill with PIF data
+router.post('/clients/:id/ircc-forms/upload-and-fill', customFormUpload.single('form'), async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.id);
+    if (!req.file) return res.status(400).json({ error: 'No PDF file uploaded' });
+
+    const templatePath = req.file.path;
+    const originalName = req.file.originalname;
+    const formLabel = req.body.form_name || originalName.replace(/\.pdf$/i, '');
+
+    // Build client data map
+    const { client, dataMap } = await buildFullClientDataMap(clientId);
+
+    // Also build form-specific data if we recognise the form
+    const visaType = client.visa_type || 'Express Entry';
+    const formTemplates = getFormsForVisaType(visaType);
+    let mergedDataMap = { ...dataMap };
+
+    // Try to match uploaded form to a known IRCC template by filename
+    for (const t of formTemplates) {
+      const tName = t.form_number.toLowerCase().replace(/\s+/g, '');
+      const uName = originalName.toLowerCase().replace(/\s+/g, '').replace(/\.pdf$/i, '');
+      if (uName.includes(tName) || tName.includes(uName)) {
+        const mapped = buildFormDataMap(t, dataMap);
+        mergedDataMap = { ...mergedDataMap, ...mapped };
+        break;
+      }
+    }
+
+    // Fill the uploaded form
+    const filledDir = path.join(__dirname, '..', 'uploads', 'filled');
+    if (!fs.existsSync(filledDir)) fs.mkdirSync(filledDir, { recursive: true });
+    const filledFilename = `filled_${uuidv4()}.pdf`;
+    const filledPath = path.join(filledDir, filledFilename);
+
+    const fillResult = await fillPDFForm(templatePath, mergedDataMap, filledPath);
+
+    // Save custom form template record
+    let formId;
+    const existingForm = await prepareGet(
+      'SELECT id FROM forms WHERE client_id = ? AND form_name = ?',
+      clientId, formLabel
+    );
+    if (existingForm) {
+      formId = existingForm.id;
+    } else {
+      const formResult = await prepareRun(
+        `INSERT INTO forms (client_id, filename, original_name, file_path, form_name, field_count, fields_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        clientId, req.file.filename, originalName,
+        templatePath, formLabel,
+        fillResult.fieldsTotal || 0, '[]'
+      );
+      formId = formResult.lastInsertRowid;
+    }
+
+    // Save filled form record
+    const insertResult = await prepareRun(
+      `INSERT INTO filled_forms (form_id, client_id, file_path, original_form_name) VALUES (?, ?, ?, ?)`,
+      formId, clientId, filledPath, `${formLabel}.pdf`
+    );
+    await prepareRun('UPDATE filled_forms SET data_map_json = ? WHERE id = ?',
+      JSON.stringify(mergedDataMap), insertResult.lastInsertRowid
+    );
+
+    const filledForm = await prepareGet('SELECT * FROM filled_forms WHERE id = ?', insertResult.lastInsertRowid);
+
+    res.json({
+      ...filledForm,
+      form_name: formLabel,
+      fields_filled: fillResult.fieldsFilled,
+      fields_total: fillResult.fieldsTotal,
+      method: fillResult.method || 'acroform',
+      xfa_fields_found: fillResult.xfaFieldsFound || [],
+      download_url: `/api/filled-forms/${filledForm.id}/download`,
+      message: `Form "${formLabel}" auto-filled with ${fillResult.fieldsFilled} of ${fillResult.fieldsTotal} fields using PIF data`,
+    });
+  } catch (err) {
+    console.error('Error in upload-and-fill:', err);
+    res.status(500).json({ error: 'Failed to fill uploaded form: ' + err.message });
+  }
+});
+
+// GET /clients/:id/ircc-forms/custom — list custom uploaded + filled forms for a client
+router.get('/clients/:id/ircc-forms/custom', async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.id);
+    const filled = await prepareAll(
+      `SELECT ff.*, f.form_name, f.original_name, f.file_path as template_path
+       FROM filled_forms ff
+       LEFT JOIN forms f ON ff.form_id = f.id
+       WHERE ff.client_id = $1
+       ORDER BY ff.filled_at DESC`,
+      clientId
+    );
+    res.json({
+      forms: filled.map(f => ({
+        ...f,
+        download_url: `/api/filled-forms/${f.id}/download`,
+      }))
+    });
+  } catch (err) {
+    console.error('Error listing custom forms:', err);
+    res.status(500).json({ error: 'Failed to list forms' });
+  }
+});
 
 module.exports = router;

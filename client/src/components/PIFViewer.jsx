@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { api } from '../api';
 import PDFRenderer from './PDFRenderer';
-import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2, Wand2, MessageSquare, PanelRightClose, Key, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ArrowLeftRight, FileSearch, Loader2, MessageSquare, PanelRightClose, Key, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 
 const STEPS = [
     { id: 'personal', title: 'Personal Information', Icon: User, color: '#4f46e5' },
@@ -31,38 +31,19 @@ const ALL_FIELDS = {
 };
 const ARRAY_FIELDS = ['education', 'work', 'children', 'siblings', 'addresses', 'travel', 'relatives'];
 
-// OCR field mapping: maps pdfParser extracted_data keys to PIF form fields
-const OCR_TO_PIF_MAP = {
-    first_name: 'firstName', given_names: 'firstName',
-    last_name: 'lastName', surname: 'lastName', family_name: 'lastName',
-    date_of_birth: 'dob', passport_number: 'passportNumber', document_number: 'passportNumber',
-    nationality: 'nationality', citizenship: 'nationality',
-    place_of_birth: 'placeOfBirth', sex: 'gender',
-    date_of_issue: 'passportIssueDate', date_of_expiry: 'passportExpiryDate',
-    country_of_issue: 'passportCountry', country_of_residence: 'passportCountry',
-    marital_status: 'maritalStatus', date_of_marriage: 'spouseMarriageDate',
-    occupation: 'spouseOccupation', email: 'email', phone: 'phone',
-    eye_colour: 'eyeColour', height: 'height',
-    address: 'spouseAddress', employer_name: 'employer',
-    ielts_listening: 'ieltsListening', ielts_reading: 'ieltsReading',
-    ielts_writing: 'ieltsWriting', ielts_speaking: 'ieltsSpeaking',
-    ielts_overall: 'ieltsOverall', test_type: 'testType',
-};
-
 function isFilled(val) {
     if (val === null || val === undefined || val === '') return false;
     if (typeof val === 'boolean') return true;
     return String(val).trim() !== '';
 }
 
-/* ── Field Card (View + Edit + OCR comparison + Verification) ──────────── */
-function FieldCard({ label, value, fieldKey, type, verificationStatus, verificationReason, editing, onChange, ocrValue, ocrSource, onAcceptOcr, fieldVerification, onVerifyField, canVerify }) {
+/* ── Field Card (View + Edit + Verification) ──────────── */
+function FieldCard({ label, value, fieldKey, type, verificationStatus, verificationReason, editing, onChange, fieldVerification, onVerifyField, canVerify }) {
     const filled = isFilled(value);
     const displayVal = filled
         ? (typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value))
         : '—';
     const isMismatch = verificationStatus === 'mismatch';
-    const hasOcr = ocrValue && ocrValue !== value;
     const [showComment, setShowComment] = useState(false);
     const [comment, setComment] = useState(fieldVerification?.comment || '');
 
@@ -77,7 +58,6 @@ function FieldCard({ label, value, fieldKey, type, verificationStatus, verificat
             <div className="pv-field-label">
                 <span>{label}</span>
                 <div className="pv-field-actions">
-                    {hasOcr && <span className="pv-field-indicator ocr" title="OCR data available" />}
                     {isVerified && <CheckCircle size={13} className="pv-field-status-icon verified" title="Verified" />}
                     {isFlagged && <ShieldAlert size={13} className="pv-field-status-icon flagged" title={`Flagged: ${fieldVerification.comment}`} />}
                     {canVerify && onVerifyField && (
@@ -144,22 +124,6 @@ function FieldCard({ label, value, fieldKey, type, verificationStatus, verificat
                             {fieldVerification?.comment}
                         </div>
                     )}
-                </div>
-            )}
-
-            {/* OCR comparison row */}
-            {hasOcr && (
-                <div className="pv-ocr-row">
-                    <div className="pv-ocr-badge">
-                        <ScanSearch size={11} /> OCR
-                    </div>
-                    <div className="pv-ocr-value">{ocrValue}</div>
-                    {editing && (
-                        <button className="pv-ocr-accept" onClick={() => onAcceptOcr(fieldKey, ocrValue)} title="Use OCR value">
-                            <Check size={11} /> Use
-                        </button>
-                    )}
-                    {ocrSource && <span className="pv-ocr-source" title={ocrSource}>{ocrSource}</span>}
                 </div>
             )}
 
@@ -238,7 +202,7 @@ function ArraySection({ sectionKey, rows, fields, label, optional, getVerifyProp
                                 <span className="pv-array-meter-text">{filledCount}/{fields.length}</span>
                             </div>
                         </div>
-                        <div className="pv-grid" style={{ padding: '14px 16px' }}>
+                        <div className="pv-grid pv-array-grid">
                             {fields.map(f => (
                                 <div key={f.key} className={f.full ? 'pv-span-full' : ''}>
                                     <FieldCard
@@ -265,12 +229,7 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     const [editing, setEditing] = useState(true);
     const [editData, setEditData] = useState(null);
     const [saving, setSaving] = useState(false);
-    const [ocrData, setOcrData] = useState(null);
-    const [ocrLoading, setOcrLoading] = useState(false);
-    const [showOcr, setShowOcr] = useState(false);
     const [viewMode, setViewMode] = useState('form'); // 'form' | 'compare'
-    const [autoFilling, setAutoFilling] = useState(false);
-    const [autoFillResult, setAutoFillResult] = useState(null);
     const [fieldVerifications, setFieldVerifications] = useState({});
 
     const [selectedDocId, setSelectedDocId] = useState(null);
@@ -385,70 +344,6 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
         });
     }, []);
 
-    // Accept OCR value
-    const acceptOcrValue = useCallback((key, val) => {
-        setEditData(prev => ({ ...prev, [key]: val }));
-    }, []);
-
-    // Fetch OCR data
-    const fetchOcr = async () => {
-        if (!clientId) return;
-        setOcrLoading(true);
-        try {
-            const result = await api.getPIFOcrData(clientId);
-            setOcrData(result);
-            setShowOcr(true);
-        } catch (e) {
-            console.error('Failed to fetch OCR data:', e);
-        }
-        setOcrLoading(false);
-    };
-
-    // Auto-fill all empty PIF fields from documents
-    const handleAutoFill = async () => {
-        if (!clientId) return;
-        setAutoFilling(true);
-        setAutoFillResult(null);
-        try {
-            const result = await api.autoFillPIF(clientId);
-            if (result.success) {
-                setAutoFillResult(result);
-                // Refresh data by notifying parent
-                if (onDataSaved) onDataSaved(result.form_data);
-                // Also update edit data if in edit mode
-                if (editing) {
-                    setEditData(result.form_data);
-                }
-            }
-        } catch (e) {
-            console.error('Auto-fill failed:', e);
-            alert('Failed to auto-fill. Please try again.');
-        }
-        setAutoFilling(false);
-    };
-
-    // Get OCR value for a field
-    const getOcrValue = (fieldKey) => {
-        if (!ocrData?.merged_data || !showOcr) return {};
-        // Check direct mapping
-        for (const [ocrKey, pifKey] of Object.entries(OCR_TO_PIF_MAP)) {
-            if (pifKey === fieldKey && ocrData.merged_data[ocrKey]) {
-                return {
-                    ocrValue: ocrData.merged_data[ocrKey].value,
-                    ocrSource: ocrData.merged_data[ocrKey].source_doc,
-                };
-            }
-        }
-        // Check if field key exists directly in merged data
-        if (ocrData.merged_data[fieldKey]) {
-            return {
-                ocrValue: ocrData.merged_data[fieldKey].value,
-                ocrSource: ocrData.merged_data[fieldKey].source_doc,
-            };
-        }
-        return {};
-    };
-
     // Section stats
     const getSectionStats = (stepId) => {
         if (ALL_FIELDS[stepId]) {
@@ -479,7 +374,7 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     const getVerifyProps = (sectionId, fieldKey, isArray = false, arrayIdx = 0) => {
         const props = {};
 
-        // OCR mismatch verification
+        // Mismatch verification
         if (verificationResults && verificationResults[sectionId]) {
             const vr = verificationResults[sectionId];
             if (vr.status === 'mismatch') {
@@ -511,9 +406,7 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
             label: opts.label || key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()),
             value: d[key], fieldKey: key,
             editing, onChange: setField,
-            onAcceptOcr: acceptOcrValue,
             ...getVerifyProps(step.id, key),
-            ...getOcrValue(key),
             ...opts,
         });
 
@@ -567,7 +460,7 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         <FieldCard {...fieldProps('spouseDob', { label: 'Date of Birth' })} />
                         <FieldCard {...fieldProps('spousePlaceOfBirth', { label: 'Place of Birth' })} />
                         <FieldCard {...fieldProps('spouseOccupation', { label: 'Occupation' })} />
-                        <div className="pv-span-full"><FieldCard {...fieldProps('spouseAddress', { label: 'Spouse Address' })} /></div>
+                        <FieldCard {...fieldProps('spouseAddress', { label: 'Spouse Address' })} />
                     </div>
                     <SectionDivider title="Previous Marriage" />
                     <RadioChips label="Were you previously married?" value={d.previouslyMarried} options={['Yes', 'No']} fieldKey="previouslyMarried" editing={editing} onChange={setField} />
@@ -586,17 +479,23 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                 <div>
                     <SectionDivider title="Mother's Details" icon={Users} />
                     <div className="pv-grid">
-                        {['motherFirstName', 'motherLastName', 'motherDob', 'motherDeathDate', 'motherPlaceOfBirth', 'motherOccupation'].map(k => (
-                            <FieldCard key={k} {...fieldProps(k, { label: k.replace('mother', '').replace(/([A-Z])/g, ' $1').trim() || k })} />
-                        ))}
-                        <div className="pv-span-full"><FieldCard {...fieldProps('motherAddress', { label: 'Current Address & Email' })} /></div>
+                        <FieldCard {...fieldProps('motherFirstName', { label: 'First Name' })} />
+                        <FieldCard {...fieldProps('motherLastName', { label: 'Last Name' })} />
+                        <FieldCard {...fieldProps('motherDob', { label: 'Date of Birth' })} />
+                        <FieldCard {...fieldProps('motherDeathDate', { label: 'Death Date' })} />
+                        <FieldCard {...fieldProps('motherPlaceOfBirth', { label: 'Place of Birth' })} />
+                        <FieldCard {...fieldProps('motherOccupation', { label: 'Occupation' })} />
+                        <FieldCard {...fieldProps('motherAddress', { label: 'Current Address & Email' })} />
                     </div>
                     <SectionDivider title="Father's Details" icon={Users} />
                     <div className="pv-grid">
-                        {['fatherFirstName', 'fatherLastName', 'fatherDob', 'fatherDeathDate', 'fatherPlaceOfBirth', 'fatherOccupation'].map(k => (
-                            <FieldCard key={k} {...fieldProps(k, { label: k.replace('father', '').replace(/([A-Z])/g, ' $1').trim() || k })} />
-                        ))}
-                        <div className="pv-span-full"><FieldCard {...fieldProps('fatherAddress', { label: 'Current Address & Email' })} /></div>
+                        <FieldCard {...fieldProps('fatherFirstName', { label: 'First Name' })} />
+                        <FieldCard {...fieldProps('fatherLastName', { label: 'Last Name' })} />
+                        <FieldCard {...fieldProps('fatherDob', { label: 'Date of Birth' })} />
+                        <FieldCard {...fieldProps('fatherDeathDate', { label: 'Death Date' })} />
+                        <FieldCard {...fieldProps('fatherPlaceOfBirth', { label: 'Place of Birth' })} />
+                        <FieldCard {...fieldProps('fatherOccupation', { label: 'Occupation' })} />
+                        <FieldCard {...fieldProps('fatherAddress', { label: 'Current Address & Email' })} />
                     </div>
                 </div>
             );
@@ -765,16 +664,6 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                                 <CheckCircle size={14} /> Verify All
                             </button>
                         )}
-                        {/* Auto-fill Button */}
-                        <button className="pv-toolbar-btn autofill" onClick={handleAutoFill} disabled={autoFilling} title="Auto-fill empty PIF fields from uploaded documents">
-                            {autoFilling ? <Loader2 size={14} className="spin" /> : <Wand2 size={14} />}
-                            {autoFilling ? 'Filling...' : 'Auto-fill'}
-                        </button>
-                        {/* OCR Button */}
-                        <button className={`pv-toolbar-btn ${showOcr ? 'active' : ''}`} onClick={showOcr ? () => setShowOcr(false) : fetchOcr} disabled={ocrLoading} title="Show OCR extracted data">
-                            {ocrLoading ? <Loader2 size={14} className="spin" /> : <ScanSearch size={14} />}
-                            {showOcr ? 'Hide OCR' : 'OCR Data'}
-                        </button>
                         {/* Document Viewer Button */}
                         <button className={`pv-toolbar-btn docs ${showDocPanel ? 'active' : ''}`} onClick={() => setShowDocPanel(!showDocPanel)} title="View uploaded documents">
                             <FileText size={14} /> Docs{pdfDocs.length > 0 && ` (${pdfDocs.length})`}
@@ -801,38 +690,6 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         <div className="pv-alert-banner edit">
                             <Pencil size={14} />
                             <div><strong>Edit Mode</strong><span>You are editing the client's PIF data. Click Save when done.</span></div>
-                        </div>
-                    )}
-
-                    {/* Auto-fill result banner */}
-                    {autoFillResult && (
-                        <div className="pv-alert-banner autofill">
-                            <Wand2 size={14} />
-                            <div>
-                                <strong>Auto-fill Complete</strong>
-                                <span>
-                                    {autoFillResult.fields_filled > 0
-                                        ? `${autoFillResult.fields_filled} field(s) were auto-filled from uploaded documents.`
-                                        : 'No empty fields could be filled — all matching fields already have values.'}
-                                </span>
-                                {autoFillResult.fields_filled > 0 && (
-                                    <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                                        Filled: {Object.keys(autoFillResult.filled).join(', ')}
-                                    </div>
-                                )}
-                            </div>
-                            <button className="pv-alert-dismiss" onClick={() => setAutoFillResult(null)}><X size={12} /></button>
-                        </div>
-                    )}
-
-                    {/* OCR Summary Banner */}
-                    {showOcr && ocrData && (
-                        <div className="pv-alert-banner ocr">
-                            <ScanSearch size={14} />
-                            <div>
-                                <strong>OCR Data Available</strong>
-                                <span>{ocrData.total_docs} document(s) scanned · {Object.keys(ocrData.merged_data || {}).length} fields extracted. Fields with OCR data show a blue dot and comparison row.</span>
-                            </div>
                         </div>
                     )}
 

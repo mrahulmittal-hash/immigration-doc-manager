@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
-import { FileText, Download, Zap, CheckCircle, AlertCircle, ExternalLink, Loader, Pencil, Shield, AlertTriangle } from 'lucide-react';
+import { FileText, Download, Zap, CheckCircle, AlertCircle, ExternalLink, Loader, Pencil, Shield, AlertTriangle, Upload, FileUp } from 'lucide-react';
 import FormEditor from './FormEditor';
 
 const CATEGORY_COLORS = {
@@ -23,6 +23,10 @@ export default function IRCCFormGenerator({ clientId }) {
   const [editingFormId, setEditingFormId] = useState(null);
   const [verificationBlock, setVerificationBlock] = useState(null);
   const [verificationSummary, setVerificationSummary] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const [customForms, setCustomForms] = useState([]);
+  const fileInputRef = useRef(null);
 
   const fetchForms = () => {
     api.getClientIRCCForms(clientId)
@@ -31,13 +35,42 @@ export default function IRCCFormGenerator({ clientId }) {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchForms(); }, [clientId]);
+  const fetchCustomForms = () => {
+    api.getClientCustomForms(clientId)
+      .then(data => setCustomForms(data.forms || []))
+      .catch(() => {});
+  };
+
+  useEffect(() => { fetchForms(); fetchCustomForms(); }, [clientId]);
 
   useEffect(() => {
     api.getPIFVerificationSummary(clientId)
       .then(setVerificationSummary)
       .catch(() => {});
   }, [clientId]);
+
+  const handleUploadForm = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('form', file);
+      formData.append('form_name', file.name.replace(/\.pdf$/i, ''));
+      const result = await api.uploadAndFillForm(clientId, formData);
+      if (result.error) {
+        setUploadResult({ error: result.error });
+      } else {
+        setUploadResult(result);
+        fetchCustomForms();
+      }
+    } catch (err) {
+      setUploadResult({ error: err.message || 'Upload failed' });
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const handleGenerate = async (formNumber) => {
     setGenerating(formNumber);
@@ -188,6 +221,115 @@ export default function IRCCFormGenerator({ clientId }) {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Custom IRCC Form */}
+      <div className="card" style={{
+        marginBottom: 20, padding: '20px 24px',
+        border: '2px dashed var(--border-color)',
+        background: 'var(--bg-elevated)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <FileUp size={16} style={{ color: 'var(--primary)' }} />
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Upload Blank IRCC Form
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Upload any blank IRCC PDF form and the system will automatically fill it with client's PIF data
+            </div>
+          </div>
+          <div>
+            <input ref={fileInputRef} type="file" accept=".pdf" onChange={handleUploadForm}
+              style={{ display: 'none' }} />
+            <button className="btn btn-primary" onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+              {uploading ? <Loader size={14} className="spin" /> : <Upload size={14} />}
+              {uploading ? 'Filling Form...' : 'Upload & Auto-Fill'}
+            </button>
+          </div>
+        </div>
+
+        {/* Upload result */}
+        {uploadResult && (
+          <div style={{
+            marginTop: 14, padding: '12px 16px', borderRadius: 8,
+            background: uploadResult.error ? 'rgba(239,68,68,0.06)' : 'rgba(16,185,129,0.06)',
+            border: `1px solid ${uploadResult.error ? 'rgba(239,68,68,0.2)' : 'rgba(16,185,129,0.2)'}`,
+          }}>
+            {uploadResult.error ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={14} style={{ color: '#ef4444' }} />
+                <span style={{ fontSize: 12, color: '#ef4444' }}>{uploadResult.error}</span>
+              </div>
+            ) : (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <CheckCircle size={14} style={{ color: '#10b981' }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: '#10b981' }}>
+                    {uploadResult.message}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {uploadResult.method === 'xfa' && (
+                    <span style={{
+                      fontSize: 10, padding: '2px 8px', borderRadius: 12,
+                      background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', fontWeight: 600,
+                    }}>XFA Form</span>
+                  )}
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {uploadResult.fields_filled}/{uploadResult.fields_total} fields filled
+                  </span>
+                  <a href={uploadResult.download_url} className="btn btn-success btn-sm"
+                    download style={{ fontSize: 11, padding: '3px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Download size={11} /> Download
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Custom / Previously Uploaded Forms */}
+      {customForms.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Uploaded & Filled Forms
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {customForms.map(form => (
+              <div key={form.id} className="card" style={{ padding: '14px 20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <FileText size={14} style={{ color: 'var(--primary)' }} />
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {form.form_name || form.original_form_name || 'Custom Form'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, marginLeft: 22 }}>
+                      Filled {form.filled_at ? new Date(form.filled_at).toLocaleString() : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => setEditingFormId(form.id)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                      <Pencil size={11} /> Edit
+                    </button>
+                    <a href={form.download_url} className="btn btn-success btn-sm" download
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                      <Download size={11} /> Download
+                    </a>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

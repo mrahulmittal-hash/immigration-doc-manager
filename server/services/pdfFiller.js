@@ -37,7 +37,17 @@ async function analyzeFormFields(filePath) {
     // If no AcroForm fields, check if it's an XFA form
     const isXFA = checkIsXFA(pdfDoc);
     if (isXFA) {
-        // Return a generic field list for XFA forms based on common immigration form fields
+        // Try to extract real field names from XFA XML
+        try {
+            const { getXfaFieldNames } = require('./xfaFiller');
+            const xfaFields = await getXfaFieldNames(filePath);
+            if (xfaFields.length > 0) {
+                return xfaFields;
+            }
+        } catch (e) {
+            console.warn('XFA field extraction failed:', e.message);
+        }
+        // Fallback to generic field list
         return getGenericImmigrationFields();
     }
 
@@ -96,7 +106,12 @@ function getGenericImmigrationFields() {
 
 /**
  * Fill a PDF form with the given data map and save to outputPath.
- * Supports both standard AcroForm and XFA forms (via text overlay).
+ * Supports AcroForm, XFA (XML-based), and text overlay fallback.
+ *
+ * Priority:
+ *  1. Standard AcroForm fields (pdf-lib native)
+ *  2. XFA XML stream manipulation (preserves original form structure)
+ *  3. Text overlay summary (last resort)
  */
 async function fillPDFForm(templatePath, dataMap, outputPath) {
     const pdfBytes = fs.readFileSync(templatePath);
@@ -114,8 +129,30 @@ async function fillPDFForm(templatePath, dataMap, outputPath) {
         return result;
     }
 
-    // No AcroForm fields detected — use text overlay approach
-    console.log('No AcroForm fields detected. Using text overlay approach.');
+    // No AcroForm fields — try XFA filling (preserves original form)
+    const isXFA = checkIsXFA(pdfDoc);
+    if (isXFA) {
+        try {
+            const { fillXfaForm } = require('./xfaFiller');
+            console.log('XFA form detected. Filling via XFA datasets XML manipulation...');
+            const xfaResult = await fillXfaForm(templatePath, dataMap, outputPath);
+            if (xfaResult.success) {
+                console.log(`XFA fill complete: ${xfaResult.fieldsFilled}/${xfaResult.fieldsTotal} fields filled`);
+                return {
+                    fieldsFilled: xfaResult.fieldsFilled,
+                    fieldsTotal: xfaResult.fieldsTotal,
+                    method: 'xfa',
+                    xfaFieldsFound: xfaResult.xfaFieldsFound,
+                };
+            }
+            console.warn('XFA filling returned success=false:', xfaResult.error);
+        } catch (xfaErr) {
+            console.warn('XFA filling failed, falling back to text overlay:', xfaErr.message);
+        }
+    }
+
+    // Final fallback — text overlay summary
+    console.log('Using text overlay approach.');
     const result = await fillWithTextOverlay(pdfDoc, dataMap, outputPath);
     return result;
 }
