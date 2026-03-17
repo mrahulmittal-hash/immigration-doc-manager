@@ -166,4 +166,71 @@ router.delete('/tasks/:id', async (req, res) => {
   }
 });
 
+// GET /api/calendar/events — Combined tasks + deadlines for calendar view
+router.get('/calendar/events', async (req, res) => {
+  try {
+    // Fetch all pending tasks with due dates
+    const tasks = await prepareAll(
+      `SELECT t.id, t.title, t.due_date, t.priority, t.category, t.done, t.client_id,
+              c.first_name, c.last_name
+       FROM tasks t LEFT JOIN clients c ON c.id = t.client_id
+       WHERE t.due_date IS NOT NULL
+       ORDER BY t.due_date ASC`
+    );
+
+    // Fetch all deadlines
+    const deadlines = await prepareAll(
+      `SELECT d.id, d.title, d.deadline_date, d.category, d.status, d.client_id,
+              c.first_name, c.last_name
+       FROM client_deadlines d LEFT JOIN clients c ON c.id = d.client_id
+       ORDER BY d.deadline_date ASC`
+    );
+
+    // Helper: normalize any date value to YYYY-MM-DD string
+    function toDateStr(val) {
+      if (!val) return null;
+      const s = val.toString();
+      // Already ISO format like "2026-03-18" or "2026-03-18T..."
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+      // Full date string like "Fri Mar 20 2026 00:00:00 GM..."
+      const d = new Date(s);
+      if (isNaN(d)) return null;
+      return d.toISOString().slice(0, 10);
+    }
+
+    // Map tasks to calendar events
+    const taskEvents = tasks.map(t => ({
+      id: `task-${t.id}`,
+      date: toDateStr(t.due_date),
+      label: t.title,
+      type: t.done ? 'completed' : (t.priority === 'high' ? 'deadline' : 'reminder'),
+      category: t.category,
+      source: 'task',
+      sourceId: t.id,
+      done: t.done,
+      client: t.first_name ? `${t.first_name} ${t.last_name}` : null,
+      clientId: t.client_id,
+    })).filter(e => e.date);
+
+    // Map deadlines to calendar events
+    const deadlineEvents = deadlines.map(d => ({
+      id: `deadline-${d.id}`,
+      date: toDateStr(d.deadline_date),
+      label: d.title,
+      type: d.status === 'completed' ? 'completed' : 'deadline',
+      category: d.category,
+      source: 'deadline',
+      sourceId: d.id,
+      done: d.status === 'completed',
+      client: d.first_name ? `${d.first_name} ${d.last_name}` : null,
+      clientId: d.client_id,
+    })).filter(e => e.date);
+
+    res.json([...taskEvents, ...deadlineEvents].sort((a, b) => a.date.localeCompare(b.date)));
+  } catch (err) {
+    console.error('Error fetching calendar events:', err);
+    res.status(500).json({ error: 'Failed to fetch calendar events' });
+  }
+});
+
 module.exports = router;

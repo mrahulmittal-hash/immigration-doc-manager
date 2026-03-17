@@ -203,6 +203,9 @@ export const api = {
     toggleTask: (id) => request(`/tasks/${id}/toggle`, { method: 'PATCH' }),
     deleteTask: (id) => request(`/tasks/${id}`, { method: 'DELETE' }),
 
+    // Calendar
+    getCalendarEvents: () => request('/calendar/events'),
+
     // Dashboard
     getDashboardToday: () => request('/dashboard/today'),
 
