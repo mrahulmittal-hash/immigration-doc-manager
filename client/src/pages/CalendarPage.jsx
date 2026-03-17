@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Calendar, X, Plus, Clock, AlertTriangle, Bell, CheckCircle, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, X, Plus, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 import { api } from '../api';
 
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -16,6 +17,7 @@ function daysInMonth(y, m) { return new Date(y, m+1, 0).getDate(); }
 function firstDay(y, m)    { return new Date(y, m, 1).getDay(); }
 
 export default function CalendarPage() {
+  const navigate = useNavigate();
   const now  = new Date();
   const [cur, setCur] = useState({ y: now.getFullYear(), m: now.getMonth() });
   const [events, setEvents] = useState([]);
@@ -26,10 +28,11 @@ export default function CalendarPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [showCompleted, setShowCompleted] = useState(false);
 
-  // Fetch calendar events from API
-  useEffect(() => {
-    loadEvents();
-  }, []);
+  // Tooltip state
+  const [tooltip, setTooltip] = useState(null);
+  const tooltipRef = useRef(null);
+
+  useEffect(() => { loadEvents(); }, []);
 
   async function loadEvents() {
     try {
@@ -53,10 +56,30 @@ export default function CalendarPage() {
   for (let d=1; d <= dim; d++) cells.push(d);
 
   function isoDate(d) { return `${cur.y}-${String(cur.m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
-  function eventsFor(d) {
-    return activeEvents.filter(e => e.date === isoDate(d));
-  }
+  function eventsFor(d) { return activeEvents.filter(e => e.date === isoDate(d)); }
   function isToday(d) { return cur.y === now.getFullYear() && cur.m === now.getMonth() && d === now.getDate(); }
+
+  // Navigate to client profile when clicking an event
+  function handleEventClick(ev, e) {
+    e.stopPropagation();
+    if (ev.clientId) {
+      navigate(`/clients/${ev.clientId}`);
+    }
+  }
+
+  // Tooltip handlers
+  const showTooltip = useCallback((ev, e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltip({
+      ev,
+      x: rect.left + rect.width / 2,
+      y: rect.top - 8,
+    });
+  }, []);
+
+  const hideTooltip = useCallback(() => {
+    setTooltip(null);
+  }, []);
 
   async function addEvent() {
     if (!newEv.date || !newEv.label) return;
@@ -75,9 +98,7 @@ export default function CalendarPage() {
     }
   }
 
-  // Filter out completed events unless showCompleted is true
   const activeEvents = showCompleted ? events : events.filter(e => !e.done);
-
   const sortedEvents = [...activeEvents].sort((a,b) => a.date.localeCompare(b.date));
   const filteredEvents = typeFilter ? sortedEvents.filter(e => e.type === typeFilter) : sortedEvents;
   const selectedEvents = selected ? activeEvents.filter(e => e.date === selected) : [];
@@ -87,6 +108,9 @@ export default function CalendarPage() {
   const reminderCount = activeEvents.filter(e => e.type === 'reminder').length;
   const completedCount = events.filter(e => e.done).length;
 
+  // How many events to show per cell (fixed height cells)
+  const MAX_VISIBLE = 2;
+
   return (
     <div className="clients-3panel">
       {/* LEFT SIDEBAR */}
@@ -95,7 +119,6 @@ export default function CalendarPage() {
           <Plus size={16} /> Add Event
         </button>
 
-        {/* Event type filter */}
         <div style={{ display: 'flex', gap: 6, padding: '0 12px', marginBottom: 8, flexWrap: 'wrap' }}>
           <button className={`clients-filter-chip ${!typeFilter ? 'active' : ''}`} onClick={() => setTypeFilter('')}>All</button>
           {Object.entries(EVENT_TYPE_CONFIG).filter(([key]) => key !== 'completed').map(([key, cfg]) => (
@@ -107,7 +130,6 @@ export default function CalendarPage() {
           ))}
         </div>
 
-        {/* Show completed toggle */}
         <div style={{ padding: '4px 12px', marginBottom: 8 }}>
           <button
             className={`clients-filter-chip ${showCompleted ? 'active' : ''}`}
@@ -118,7 +140,6 @@ export default function CalendarPage() {
           </button>
         </div>
 
-        {/* Events list */}
         <div className="clients-list">
           {loading ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
@@ -132,8 +153,8 @@ export default function CalendarPage() {
             return (
               <div key={ev.id || i}
                 className={`clients-list-item ${selected === ev.date ? 'active' : ''}`}
-                onClick={() => setSelected(ev.date)}
-                style={ev.done ? { opacity: 0.5 } : {}}
+                onClick={() => ev.clientId ? navigate(`/clients/${ev.clientId}`) : setSelected(ev.date)}
+                style={{ ...( ev.done ? { opacity: 0.5 } : {}), cursor: 'pointer' }}
               >
                 <div className="clients-item-avatar" style={{
                   background: cfg.bg, color: cfg.color, borderColor: `${cfg.color}30`,
@@ -149,7 +170,7 @@ export default function CalendarPage() {
                     {ev.label}
                   </div>
                   <div className="clients-item-meta">
-                    {ev.client && <span>{ev.client} &middot; </span>}
+                    {ev.client && <span style={{ fontWeight: 600 }}>{ev.client} &middot; </span>}
                     <span style={{ color: cfg.color }}>{ev.source === 'task' ? 'Task' : 'Deadline'}</span>
                   </div>
                 </div>
@@ -167,9 +188,8 @@ export default function CalendarPage() {
       {/* CENTER PANEL */}
       <div className="clients-center">
         <div className="clients-center-scroll">
-          {/* Calendar Grid */}
           <div className="clients-detail-card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 20px', borderBottom:'1px solid var(--border-light)', background: 'var(--bg-base)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px', borderBottom:'1px solid var(--border-light)', background: 'var(--bg-base)' }}>
               <button className="btn btn-ghost btn-sm" onClick={prev} style={{ background: 'var(--bg-elevated)', border: 'none', width: 32, height: 32, padding: 0, borderRadius: 8, display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <ChevronLeft size={16} />
               </button>
@@ -190,19 +210,30 @@ export default function CalendarPage() {
                   >
                     {day && (
                       <>
-                        <div className="cal-day-num">
-                          {day}
-                          {dayEvents.length > 0 && (
-                            <span style={{ fontSize: 9, color: 'var(--text-muted)', marginLeft: 4 }}>({dayEvents.length})</span>
-                          )}
-                        </div>
-                        {dayEvents.slice(0, 3).map((ev, ei) => (
-                          <div key={ei} className={`cal-event ${ev.type}`} style={ev.done ? { opacity: 0.4, textDecoration: 'line-through' } : {}}>
-                            {ev.label.length > 30 ? ev.label.slice(0, 28) + '...' : ev.label}
+                        <div className="cal-day-num">{day}</div>
+                        {dayEvents.slice(0, MAX_VISIBLE).map((ev, ei) => {
+                          const cfg = EVENT_TYPE_CONFIG[ev.type] || EVENT_TYPE_CONFIG.reminder;
+                          const shortClient = ev.client ? ev.client.split(' ')[0] : '';
+                          return (
+                            <div
+                              key={ei}
+                              className={`cal-event ${ev.type}`}
+                              style={ev.done ? { opacity: 0.4, textDecoration: 'line-through' } : {}}
+                              onClick={(e) => handleEventClick(ev, e)}
+                              onMouseEnter={(e) => showTooltip(ev, e)}
+                              onMouseLeave={hideTooltip}
+                            >
+                              {shortClient ? `${shortClient}: ` : ''}{ev.label.length > 22 ? ev.label.slice(0, 20) + '…' : ev.label}
+                            </div>
+                          );
+                        })}
+                        {dayEvents.length > MAX_VISIBLE && (
+                          <div
+                            className="cal-day-more"
+                            onClick={(e) => { e.stopPropagation(); setSelected(isoDate(day)); }}
+                          >
+                            +{dayEvents.length - MAX_VISIBLE} more
                           </div>
-                        ))}
-                        {dayEvents.length > 3 && (
-                          <div style={{ fontSize: 9, color: 'var(--text-muted)', padding: '0 4px' }}>+{dayEvents.length - 3} more</div>
                         )}
                       </>
                     )}
@@ -212,7 +243,7 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {/* Selected date events */}
+          {/* Selected date detail card */}
           {selected && selectedEvents.length > 0 && (
             <div className="clients-detail-card" style={{ marginTop: 16 }}>
               <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 14, color: 'var(--text-primary)' }}>
@@ -222,12 +253,23 @@ export default function CalendarPage() {
                 {selectedEvents.map((ev, i) => {
                   const cfg = EVENT_TYPE_CONFIG[ev.type] || EVENT_TYPE_CONFIG.reminder;
                   return (
-                    <div key={ev.id || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border-light)', opacity: ev.done ? 0.5 : 1 }}>
+                    <div
+                      key={ev.id || i}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12, padding: 12,
+                        background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border-light)',
+                        opacity: ev.done ? 0.5 : 1, cursor: ev.clientId ? 'pointer' : 'default',
+                        transition: 'all 0.15s',
+                      }}
+                      onClick={() => ev.clientId && navigate(`/clients/${ev.clientId}`)}
+                      onMouseEnter={(e) => { if (ev.clientId) e.currentTarget.style.borderColor = cfg.color; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-light)'; }}
+                    >
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color, boxShadow: `0 0 6px ${cfg.color}`, flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 14, fontWeight: 600, textDecoration: ev.done ? 'line-through' : 'none' }}>{ev.label}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                          {ev.client && <span style={{ fontWeight: 600 }}>{ev.client}</span>}
+                          {ev.client && <span style={{ fontWeight: 600, color: '#0d9488' }}>{ev.client}</span>}
                           {ev.client && ' \u00b7 '}
                           <span style={{ color: cfg.color, fontWeight: 600 }}>{ev.source === 'task' ? 'Task' : 'Deadline'}</span>
                           {ev.category && <span> \u00b7 {ev.category}</span>}
@@ -237,7 +279,8 @@ export default function CalendarPage() {
                         <button
                           style={{ background: 'rgba(74,222,128,.1)', border: 'none', color: '#4ade80', cursor: 'pointer', width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                           title="Mark as done"
-                          onClick={async () => {
+                          onClick={async (e) => {
+                            e.stopPropagation();
                             try {
                               await api.toggleTask(ev.sourceId);
                               loadEvents();
@@ -246,6 +289,9 @@ export default function CalendarPage() {
                         >
                           <CheckCircle size={14} />
                         </button>
+                      )}
+                      {ev.clientId && (
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>View →</div>
                       )}
                     </div>
                   );
@@ -258,7 +304,6 @@ export default function CalendarPage() {
 
       {/* RIGHT CONTEXT PANEL */}
       <div className="clients-context">
-        {/* Event Counts */}
         <div className="clients-ctx-section">
           <div className="clients-ctx-label">Event Summary</div>
           <div className="clients-ctx-stat-row">
@@ -291,7 +336,6 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Selected Date */}
         {selected && (
           <div className="clients-ctx-section">
             <div className="clients-ctx-label">Selected Date</div>
@@ -305,11 +349,14 @@ export default function CalendarPage() {
                 {selectedEvents.map((ev, i) => {
                   const cfg = EVENT_TYPE_CONFIG[ev.type] || EVENT_TYPE_CONFIG.reminder;
                   return (
-                    <div key={ev.id || i} className="clients-ctx-row">
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.color }} />
+                    <div key={ev.id || i} className="clients-ctx-row"
+                      style={{ cursor: ev.clientId ? 'pointer' : 'default' }}
+                      onClick={() => ev.clientId && navigate(`/clients/${ev.clientId}`)}
+                    >
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
                       <div style={{ minWidth: 0 }}>
-                        <span style={{ fontSize: 12 }}>{ev.label}</span>
-                        {ev.client && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{ev.client}</div>}
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>{ev.label}</span>
+                        {ev.client && <div style={{ fontSize: 10, color: '#0d9488', fontWeight: 600 }}>{ev.client}</div>}
                       </div>
                     </div>
                   );
@@ -319,15 +366,14 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* Upcoming */}
         <div className="clients-ctx-section">
           <div className="clients-ctx-label">Upcoming</div>
           {sortedEvents.filter(e => e.date >= now.toISOString().slice(0, 10) && !e.done).slice(0, 8).map((ev, i) => {
             const cfg = EVENT_TYPE_CONFIG[ev.type] || EVENT_TYPE_CONFIG.reminder;
             return (
               <div key={ev.id || i} className="clients-ctx-row" style={{ cursor: 'pointer' }} onClick={() => {
+                if (ev.clientId) { navigate(`/clients/${ev.clientId}`); return; }
                 setSelected(ev.date);
-                // Navigate to the month if needed
                 const [y, m] = ev.date.split('-').map(Number);
                 if (y !== cur.y || m-1 !== cur.m) setCur({ y, m: m-1 });
               }}>
@@ -336,7 +382,7 @@ export default function CalendarPage() {
                   <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.label}</div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                     {new Date(ev.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    {ev.client && ` \u2014 ${ev.client}`}
+                    {ev.client && <span style={{ color: '#0d9488', fontWeight: 600 }}>{` \u2014 ${ev.client}`}</span>}
                   </div>
                 </div>
               </div>
@@ -347,33 +393,53 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* Overdue */}
         {sortedEvents.filter(e => e.date < now.toISOString().slice(0, 10) && !e.done).length > 0 && (
           <div className="clients-ctx-section">
-            <div className="clients-ctx-label" style={{ color: '#f87171' }}>
+            <div className="clients-ctx-label" style={{ color: '#f87171', display: 'flex', alignItems: 'center' }}>
               <AlertTriangle size={12} style={{ marginRight: 4 }} /> Overdue
             </div>
-            {sortedEvents.filter(e => e.date < now.toISOString().slice(0, 10) && !e.done).map((ev, i) => {
-              return (
-                <div key={ev.id || i} className="clients-ctx-row" style={{ cursor: 'pointer' }} onClick={() => {
-                  setSelected(ev.date);
-                  const [y, m] = ev.date.split('-').map(Number);
-                  if (y !== cur.y || m-1 !== cur.m) setCur({ y, m: m-1 });
-                }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f87171', flexShrink: 0 }} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#f87171' }}>{ev.label}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                      {new Date(ev.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      {ev.client && ` \u2014 ${ev.client}`}
-                    </div>
+            {sortedEvents.filter(e => e.date < now.toISOString().slice(0, 10) && !e.done).map((ev, i) => (
+              <div key={ev.id || i} className="clients-ctx-row" style={{ cursor: 'pointer' }} onClick={() => {
+                if (ev.clientId) { navigate(`/clients/${ev.clientId}`); return; }
+                setSelected(ev.date);
+                const [y, m] = ev.date.split('-').map(Number);
+                if (y !== cur.y || m-1 !== cur.m) setCur({ y, m: m-1 });
+              }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#f87171', flexShrink: 0 }} />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#f87171' }}>{ev.label}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    {new Date(ev.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    {ev.client && <span style={{ color: '#0d9488', fontWeight: 600 }}>{` \u2014 ${ev.client}`}</span>}
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
+
+      {/* Floating Tooltip */}
+      {tooltip && (
+        <div
+          ref={tooltipRef}
+          className="cal-tooltip"
+          style={{
+            display: 'block',
+            left: tooltip.x,
+            top: tooltip.y,
+            transform: 'translate(-50%, -100%)',
+          }}
+        >
+          <div className="tt-title">{tooltip.ev.label}</div>
+          {tooltip.ev.client && <div className="tt-client">{tooltip.ev.client}</div>}
+          <div className="tt-meta">
+            {tooltip.ev.source === 'task' ? 'Task' : 'Deadline'}
+            {tooltip.ev.category && ` \u00b7 ${tooltip.ev.category}`}
+            {tooltip.ev.clientId && ' \u00b7 Click to view client'}
+          </div>
+        </div>
+      )}
 
       {/* New Event Modal */}
       {showNew && (
