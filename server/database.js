@@ -365,6 +365,47 @@ async function initDatabase() {
       )
     `);
 
+    // Email Ingestion Config (IMAP multi-provider)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS email_ingestion_config (
+        id                SERIAL PRIMARY KEY,
+        user_id           INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        provider          TEXT NOT NULL,
+        imap_host         TEXT NOT NULL,
+        imap_port         INTEGER NOT NULL DEFAULT 993,
+        imap_tls          BOOLEAN DEFAULT TRUE,
+        email_address     TEXT NOT NULL,
+        app_password_enc  TEXT NOT NULL,
+        app_password_iv   TEXT NOT NULL,
+        app_password_tag  TEXT NOT NULL,
+        sync_frequency    TEXT DEFAULT 'manual',
+        last_sync_at      TIMESTAMPTZ,
+        last_sync_status  TEXT,
+        last_sync_error   TEXT,
+        is_active         BOOLEAN DEFAULT TRUE,
+        created_at        TIMESTAMPTZ DEFAULT NOW(),
+        updated_at        TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS processed_emails (
+        id                SERIAL PRIMARY KEY,
+        config_id         INTEGER NOT NULL REFERENCES email_ingestion_config(id) ON DELETE CASCADE,
+        message_uid       TEXT NOT NULL,
+        message_id        TEXT,
+        client_id         INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+        from_email        TEXT,
+        subject           TEXT,
+        received_at       TIMESTAMPTZ,
+        attachments_count INTEGER DEFAULT 0,
+        processed_at      TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(config_id, message_uid)
+      )
+    `);
+
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_processed_emails_msguid ON processed_emails(config_id, message_uid)`);
+
     // Seed default admin if none exists (required for first login)
     const bcrypt = require('bcryptjs');
     const adminExists = await client.query("SELECT id FROM users LIMIT 1");

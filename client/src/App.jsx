@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, CheckSquare, Calendar, CreditCard,
-  Newspaper, UserCog, Mail, LogOut, ChevronDown, Settings, Briefcase
+  Newspaper, UserCog, LogOut, ChevronDown, Settings, Briefcase
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { canAccessRoute } from './constants/roles';
@@ -19,7 +19,6 @@ import ClientPortal from './pages/ClientPortal';
 import UsersPage from './pages/UsersPage';
 import ImmigrationUpdates from './pages/ImmigrationUpdates';
 import IRCCTemplates from './pages/IRCCTemplates';
-import EmailSettings from './pages/EmailSettings';
 import AdminSettings from './pages/AdminSettings';
 import LoginPage from './pages/LoginPage';
 import SessionWrapper from './components/SessionWrapper';
@@ -39,7 +38,6 @@ const MORE_ITEMS = [
   { to: '/retainers',    icon: CreditCard,  label: 'Trust Accounting' },
   { to: '/ircc-updates', icon: Newspaper,   label: 'IRCC Updates' },
   { to: '/users',        icon: UserCog,     label: 'Users' },
-  { to: '/settings/email', icon: Mail,      label: 'Email Settings' },
   { to: '/admin',          icon: Briefcase, label: 'Admin Settings' },
 ];
 
@@ -190,9 +188,6 @@ function AppRoutes() {
                 } />
                 <Route path="/ircc-templates" element={
                   <ProtectedRoute path="/ircc-templates"><IRCCTemplates /></ProtectedRoute>
-                } />
-                <Route path="/settings/email" element={
-                  <ProtectedRoute path="/settings/email"><EmailSettings /></ProtectedRoute>
                 } />
                 <Route path="/admin" element={
                   <ProtectedRoute roles={['Admin']}><AdminSettings /></ProtectedRoute>

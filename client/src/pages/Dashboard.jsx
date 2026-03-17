@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import { hasPermission } from '../constants/roles';
@@ -7,13 +7,14 @@ import {
   Users, CheckCircle, Clock, FileText, Calendar, CreditCard,
   UserPlus, CheckSquare, ArrowRight, BarChart3, Newspaper, AlertTriangle,
   Activity, Globe, GitBranch, Briefcase, Cake, Award, Circle, Check,
-  ClipboardList, FolderOpen, Building2, Shield, Stamp
+  ClipboardList, FolderOpen, Building2, Shield, Stamp, Gauge
 } from 'lucide-react';
 
 const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const userRole = user?.role || 'Viewer';
   const [stats, setStats] = useState(null);
   const [clients, setClients] = useState([]);
@@ -22,6 +23,13 @@ export default function Dashboard() {
   const [deadlines, setDeadlines] = useState([]);
   const [todayData, setTodayData] = useState({ tasks: [], birthdays: [], anniversaries: [], deadlines: [] });
   const [verificationQueue, setVerificationQueue] = useState([]);
+  const SPEED_OPTIONS = [
+    { label: 'Slow', value: '60s' },
+    { label: 'Normal', value: '40s' },
+    { label: 'Fast', value: '20s' },
+  ];
+  const [speedIdx, setSpeedIdx] = useState(1);
+  const cycleSpeed = () => setSpeedIdx(prev => (prev + 1) % SPEED_OPTIONS.length);
 
   useEffect(() => {
     Promise.all([
@@ -171,11 +179,17 @@ export default function Dashboard() {
                   </span>
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase' }}>Tasks</span>
                 </div>
-                <div style={{ flex: 1, overflow: 'hidden', padding: '0 12px' }}>
+                <div style={{ flex: 1, overflow: 'hidden', padding: '0 12px', '--marquee-speed': SPEED_OPTIONS[speedIdx].value }}>
                   <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden', height: 38 }}>
                     <div className="dash-task-marquee">
                       {[...todayData.tasks.filter(t => !t.done), ...todayData.tasks.filter(t => !t.done)].map((t, i) => (
-                        <span key={`${t.id}-${i}`} className="dash-task-marquee-item">
+                        <span
+                          key={`${t.id}-${i}`}
+                          className="dash-task-marquee-item"
+                          style={{ cursor: t.client_id ? 'pointer' : 'default' }}
+                          onClick={() => t.client_id && navigate(`/clients/${t.client_id}`)}
+                          title={t.client_id ? `Go to ${t.client}'s profile` : ''}
+                        >
                           <Circle size={5} fill={PRIORITY_COLORS[t.priority]} color={PRIORITY_COLORS[t.priority]} style={{ flexShrink: 0 }} />
                           <span style={{ fontWeight: 600, fontSize: 12 }}>{t.title}</span>
                           {t.client && <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>({t.client})</span>}
@@ -191,6 +205,14 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+                <button
+                  className="marquee-speed-btn"
+                  onClick={cycleSpeed}
+                  title={`Speed: ${SPEED_OPTIONS[speedIdx].label}`}
+                >
+                  <Gauge size={13} />
+                  <span className="marquee-speed-label">{SPEED_OPTIONS[speedIdx].label}</span>
+                </button>
                 <Link to="/tasks" className="btn btn-primary btn-sm" style={{ margin: '0 12px', fontSize: 11, padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
                   View All <ArrowRight size={12} />
                 </Link>

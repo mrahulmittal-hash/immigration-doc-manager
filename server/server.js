@@ -36,6 +36,7 @@ const tasksRouter = require('./routes/tasks');
 const irccTemplatesRouter = require('./routes/ircc-templates');
 const auditRouter = require('./routes/audit');
 const adminRouter = require('./routes/admin');
+const emailIngestionRouter = require('./routes/emailIngestion');
 const webhooksRouter = require('./routes/webhooks');
 
 // Mount routes
@@ -59,6 +60,7 @@ app.use('/api', requireAuth, tasksRouter);
 app.use('/api/ircc-templates', requireAuth, irccTemplatesRouter);
 app.use('/api', requireAuth, auditRouter);
 app.use('/api/admin', requireAuth, requireRole('Admin'), adminRouter);
+app.use('/api/admin', requireAuth, requireRole('Admin'), emailIngestionRouter);
 app.use('/api', requireAuth, adminRouter);  // non-admin routes in admin.js (fee-adjustments, retainer-agreements, service-fees/active)
 // PUBLIC routes (magic-link flow — no login required for clients)
 app.use('/api/pif', pifRouter);
@@ -173,6 +175,10 @@ async function start() {
       console.log('Running scheduled IRCC news scrape...');
       scrapeIRCCNews().catch(err => console.error('Scheduled scrape failed:', err));
     });
+
+    // Start email ingestion scheduler for active IMAP configs
+    const { startScheduler } = require('./services/imapIngestionService');
+    startScheduler().catch(err => console.error('Email ingestion scheduler init failed:', err));
 }
 
 start().catch(err => {

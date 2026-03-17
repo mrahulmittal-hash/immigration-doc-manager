@@ -293,6 +293,13 @@ export const api = {
     updateSigningSettings: (data) => request('/admin/signing-settings', { method: 'PUT', body: JSON.stringify(data) }),
     testSigningConnection: () => request('/admin/signing-settings/test', { method: 'POST' }),
 
+    // Admin — Email Ingestion
+    getEmailIngestionConfig: () => request('/admin/email-ingestion'),
+    updateEmailIngestionConfig: (data) => request('/admin/email-ingestion', { method: 'PUT', body: JSON.stringify(data) }),
+    testEmailIngestionConnection: (data) => request('/admin/email-ingestion/test', { method: 'POST', body: JSON.stringify(data) }),
+    syncEmailIngestion: () => request('/admin/email-ingestion/sync', { method: 'POST' }),
+    disconnectEmailIngestion: () => request('/admin/email-ingestion', { method: 'DELETE' }),
+
     // Audit
     getAuditLog: (clientId, params = {}) => {
         const qs = new URLSearchParams(params).toString();

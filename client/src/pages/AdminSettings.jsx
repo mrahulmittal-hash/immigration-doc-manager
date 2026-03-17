@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Users, DollarSign, FileText, Building, Shield } from 'lucide-react';
+import { Users, DollarSign, FileText, Building, Shield, Mail } from 'lucide-react';
 import UsersPage from './UsersPage';
 import ServiceFeesTab from '../components/ServiceFeesTab';
 import RetainerTemplateTab from '../components/RetainerTemplateTab';
 import FirmProfileTab from '../components/FirmProfileTab';
 import SigningSettingsTab from '../components/SigningSettingsTab';
+import EmailIngestionTab from '../components/EmailIngestionTab';
 
 const TABS = [
   { key: 'users', label: 'Users', Icon: Users },
@@ -12,6 +13,7 @@ const TABS = [
   { key: 'template', label: 'Retainer Template', Icon: FileText },
   { key: 'firm', label: 'Firm Profile', Icon: Building },
   { key: 'signing', label: 'Signing Service', Icon: Shield },
+  { key: 'email', label: 'Email Integration', Icon: Mail },
 ];
 
 export default function AdminSettings() {
@@ -21,7 +23,7 @@ export default function AdminSettings() {
     <div>
       <div style={{ marginBottom: 0 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 4px' }}>Admin Settings</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Manage users, service fees, retainer templates, firm profile, and signing service</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Manage users, service fees, retainer templates, firm profile, signing service, and email integration</p>
       </div>
 
       <div className="tabs" style={{ marginTop: 16 }}>
@@ -42,6 +44,7 @@ export default function AdminSettings() {
       {tab === 'template' && <RetainerTemplateTab />}
       {tab === 'firm' && <FirmProfileTab />}
       {tab === 'signing' && <SigningSettingsTab />}
+      {tab === 'email' && <EmailIngestionTab />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { api } from '../api';
 import PDFRenderer from './PDFRenderer';
-import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2, Wand2, MessageSquare, PanelRightOpen, PanelRightClose, Key, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, MapPin, BookOpen, Heart, Users, GraduationCap, Briefcase, Baby, UserPlus, Home, Plane, UsersRound, Languages, Scale, AlertTriangle, Check, CheckCircle, Square, ChevronLeft, ChevronRight, Paperclip, FileText, Eye, Pencil, Save, X, BarChart3, Shield, ShieldAlert, ShieldCheck, ScanSearch, ArrowLeftRight, FileSearch, Loader2, Wand2, MessageSquare, PanelRightClose, Key, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 
 const STEPS = [
     { id: 'personal', title: 'Personal Information', Icon: User, color: '#4f46e5' },
@@ -76,31 +76,26 @@ function FieldCard({ label, value, fieldKey, type, verificationStatus, verificat
             style={borderColor ? { borderLeft: `3px solid ${borderColor}` } : undefined}>
             <div className="pv-field-label">
                 <span>{label}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {hasOcr && <span className="pv-field-dot ocr" title="OCR data available" />}
-                    {isVerified && <CheckCircle size={13} style={{ color: '#10b981' }} title="Verified" />}
-                    {isFlagged && <ShieldAlert size={13} style={{ color: '#ef4444' }} title={`Flagged: ${fieldVerification.comment}`} />}
+                <div className="pv-field-actions">
+                    {hasOcr && <span className="pv-field-indicator ocr" title="OCR data available" />}
+                    {isVerified && <CheckCircle size={13} className="pv-field-status-icon verified" title="Verified" />}
+                    {isFlagged && <ShieldAlert size={13} className="pv-field-status-icon flagged" title={`Flagged: ${fieldVerification.comment}`} />}
                     {canVerify && onVerifyField && (
-                        <button
+                        <button className="pv-field-action-btn pv-hover-show"
                             onClick={() => onVerifyField(fieldKey, !isVerified, comment)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
-                            title={isVerified ? 'Unverify' : 'Verify'}
-                        >
+                            title={isVerified ? 'Unverify' : 'Verify'}>
                             {isVerified
                                 ? <CheckCircle size={14} style={{ color: '#10b981' }} />
-                                : <Square size={14} style={{ color: 'var(--text-muted)' }} />}
+                                : <Square size={14} />}
                         </button>
                     )}
                     {canVerify && (
-                        <button
+                        <button className="pv-field-action-btn pv-hover-show"
                             onClick={() => setShowComment(!showComment)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
-                            title="Add comment"
-                        >
-                            <MessageSquare size={13} style={{ color: fieldVerification?.comment ? '#f59e0b' : 'var(--text-muted)' }} />
+                            title="Add comment">
+                            <MessageSquare size={13} style={{ color: fieldVerification?.comment ? '#f59e0b' : undefined }} />
                         </button>
                     )}
-                    <span className={`pv-field-dot ${isMismatch ? 'mismatch' : filled ? 'filled' : 'empty'}`} />
                 </div>
             </div>
 
@@ -180,19 +175,28 @@ function FieldCard({ label, value, fieldKey, type, verificationStatus, verificat
 function RadioChips({ label, value, options, fieldKey, editing, onChange }) {
     const filled = isFilled(value);
     return (
-        <div className="pv-field-card" style={{ gridColumn: '1 / -1' }}>
-            <div className="pv-field-label">
-                <span>{label}</span>
-                <span className={`pv-field-dot ${filled ? 'filled' : 'empty'}`} />
+        <div className={`pv-radio-card ${filled ? 'pv-radio-filled' : 'pv-radio-empty'}`} style={{ gridColumn: '1 / -1' }}>
+            <div className="pv-radio-question">
+                <span className="pv-radio-icon-wrap">
+                    {filled ? <CheckCircle size={16} className="pv-radio-check-icon" /> : <Square size={16} className="pv-radio-square-icon" />}
+                </span>
+                <span className="pv-radio-label">{label}</span>
             </div>
-            <div className="pv-radio-chips">
-                {options.map(o => (
-                    <span key={o}
-                        className={`pv-chip ${value === o ? 'active' : ''} ${editing ? 'clickable' : ''}`}
-                        onClick={editing ? () => onChange(fieldKey, o) : undefined}>
-                        {value === o && <Check size={12} />} {o}
-                    </span>
-                ))}
+            <div className="pv-radio-options">
+                {options.map(o => {
+                    const isSelected = value === o;
+                    const isYes = o === 'Yes';
+                    return (
+                        <button key={o}
+                            className={`pv-radio-btn ${isSelected ? 'selected' : ''} ${isSelected && isYes ? 'yes' : ''} ${isSelected && !isYes ? 'no' : ''}`}
+                            onClick={editing ? () => onChange(fieldKey, o) : undefined}
+                            disabled={!editing}
+                            type="button">
+                            {isSelected ? <Check size={13} strokeWidth={3} /> : null}
+                            <span>{o}</span>
+                        </button>
+                    );
+                })}
             </div>
         </div>
     );
@@ -270,7 +274,7 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
     const [fieldVerifications, setFieldVerifications] = useState({});
 
     const [selectedDocId, setSelectedDocId] = useState(null);
-    const [showDocPanel, setShowDocPanel] = useState(true);
+    const [showDocPanel, setShowDocPanel] = useState(false);
     const [showClientData, setShowClientData] = useState(false);
     const [clientDataLocal, setClientDataLocal] = useState([]);
 
@@ -702,10 +706,6 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                 </div>
             )}
 
-            {/* Split-screen container */}
-            <div style={{ display: 'flex', gap: 0, minHeight: 'calc(100vh - 380px)' }}>
-                {/* Left: PIF form (flexible width) */}
-                <div style={{ flex: showDocPanel ? '0 0 60%' : '1 1 auto', overflow: 'auto', minWidth: 0 }}>
         <div className="pv-shell">
             {/* ── Left Sidebar ─────────────────────────────── */}
             <div className="pv-sidebar">
@@ -774,6 +774,10 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                         <button className={`pv-toolbar-btn ${showOcr ? 'active' : ''}`} onClick={showOcr ? () => setShowOcr(false) : fetchOcr} disabled={ocrLoading} title="Show OCR extracted data">
                             {ocrLoading ? <Loader2 size={14} className="spin" /> : <ScanSearch size={14} />}
                             {showOcr ? 'Hide OCR' : 'OCR Data'}
+                        </button>
+                        {/* Document Viewer Button */}
+                        <button className={`pv-toolbar-btn docs ${showDocPanel ? 'active' : ''}`} onClick={() => setShowDocPanel(!showDocPanel)} title="View uploaded documents">
+                            <FileText size={14} /> Docs{pdfDocs.length > 0 && ` (${pdfDocs.length})`}
                         </button>
                         {/* Edit / Save / Cancel */}
                         {editing ? (
@@ -906,71 +910,34 @@ export default function PIFViewer({ data, verificationResults, clientDocuments, 
                             </div>
                         )}
                     </div>
+
+            {/* ── Document Viewer Drawer (slide-over) ──────────── */}
+            <div className={`pv-doc-backdrop ${showDocPanel ? 'open' : ''}`} onClick={() => setShowDocPanel(false)} />
+            <div className={`pv-doc-drawer ${showDocPanel ? 'open' : ''}`}>
+                <div className="pv-doc-drawer-header">
+                    <FileText size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                    <select value={selectedDocId || ''} onChange={e => setSelectedDocId(e.target.value || null)}>
+                        <option value="">Select a document to view...</option>
+                        {pdfDocs.map(doc => (
+                            <option key={doc.id} value={doc.id}>{doc.original_name}</option>
+                        ))}
+                    </select>
+                    <button className="pv-doc-drawer-close" onClick={() => setShowDocPanel(false)} title="Close document viewer">
+                        <PanelRightClose size={18} />
+                    </button>
                 </div>
-
-                {/* Right: Document Viewer Panel (40%) */}
-                {showDocPanel && (
-                    <div style={{
-                        flex: '0 0 40%', background: '#1e293b', borderRadius: '0 12px 12px 0',
-                        display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 500,
-                    }}>
-                        {/* Document selector */}
-                        <div style={{
-                            padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.1)',
-                            display: 'flex', alignItems: 'center', gap: 8,
-                        }}>
-                            <FileText size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                            <select value={selectedDocId || ''} onChange={e => setSelectedDocId(e.target.value || null)}
-                                style={{
-                                    flex: 1, background: '#334155', color: '#e2e8f0', border: '1px solid #475569',
-                                    borderRadius: 6, padding: '6px 10px', fontSize: 12, outline: 'none',
-                                }}>
-                                <option value="">Select a document to view...</option>
-                                {pdfDocs.map(doc => (
-                                    <option key={doc.id} value={doc.id}>{doc.original_name}</option>
-                                ))}
-                            </select>
-                            <button onClick={() => setShowDocPanel(false)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}
-                                title="Hide document panel">
-                                <PanelRightClose size={16} />
-                            </button>
+                <div className="pv-doc-drawer-body">
+                    {selectedDocId ? (
+                        <PDFRenderer url={api.getDocumentDownloadUrl(selectedDocId)} />
+                    ) : (
+                        <div className="pv-doc-drawer-placeholder">
+                            <Eye size={36} />
+                            <div className="pv-doc-drawer-title">Select a document above</div>
+                            <div className="pv-doc-drawer-desc">Compare uploaded documents with client PIF data to verify accuracy</div>
                         </div>
-                        {/* PDF Renderer */}
-                        <div style={{ flex: 1, overflow: 'hidden' }}>
-                            {selectedDocId ? (
-                                <PDFRenderer url={api.getDocumentDownloadUrl(selectedDocId)} />
-                            ) : (
-                                <div style={{
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                    height: '100%', color: '#64748b', gap: 12, padding: 20,
-                                }}>
-                                    <Eye size={32} />
-                                    <div style={{ fontSize: 13, fontWeight: 600, textAlign: 'center' }}>Select a document above to view it alongside PIF fields</div>
-                                    <div style={{ fontSize: 11, textAlign: 'center', maxWidth: 250 }}>
-                                        Compare uploaded documents with client data to verify accuracy
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
-
-            {/* Toggle doc panel button when hidden */}
-            {!showDocPanel && (
-                <button onClick={() => setShowDocPanel(true)}
-                    style={{
-                        position: 'fixed', right: 16, bottom: 80, zIndex: 20,
-                        background: '#1e293b', color: '#e2e8f0', border: '1px solid #475569',
-                        borderRadius: 10, padding: '10px 14px', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
-                        boxShadow: '0 4px 12px rgba(0,0,0,.3)',
-                    }}
-                    title="Show document viewer">
-                    <PanelRightOpen size={16} /> View Documents
-                </button>
-            )}
         </div>
     );
 }
