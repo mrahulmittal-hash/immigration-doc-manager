@@ -2697,3 +2697,253 @@ td strong { color: var(--text-primary); }
   text-align: center; padding: 40px 20px; color: var(--text-muted);
   font-size: 14px;
 }
+
+/* ============================================================
+   ANIMATIONS & MICRO-INTERACTIONS
+   ============================================================ */
+
+/* ── Keyframes ────────────────────────────────────────────── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes modalBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes popIn {
+  0%   { transform: scale(0.8); opacity: 0; }
+  70%  { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes subtlePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79,70,229,0.15); }
+  50%      { box-shadow: 0 0 0 6px rgba(79,70,229,0); }
+}
+@keyframes ripple {
+  to { transform: scale(2.5); opacity: 0; }
+}
+
+/* ── Page content fade in ─────────────────────────────────── */
+.page-content {
+  animation: fadeInUp 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Stat cards stagger ───────────────────────────────────── */
+.stat-card {
+  animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stat-card:nth-child(1) { animation-delay: 0.05s; }
+.stat-card:nth-child(2) { animation-delay: 0.1s; }
+.stat-card:nth-child(3) { animation-delay: 0.15s; }
+.stat-card:nth-child(4) { animation-delay: 0.2s; }
+.stat-card:nth-child(5) { animation-delay: 0.25s; }
+.stat-card:nth-child(6) { animation-delay: 0.3s; }
+
+.stat-value {
+  animation: countUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+}
+
+/* ── Modal animations ─────────────────────────────────────── */
+.modal-overlay {
+  animation: modalBackdropIn 0.2s ease-out;
+}
+.modal {
+  animation: modalSlideIn 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Sidebar list items stagger ───────────────────────────── */
+.clients-list-item {
+  animation: fadeInUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.clients-list-item:nth-child(1)  { animation-delay: 0.02s; }
+.clients-list-item:nth-child(2)  { animation-delay: 0.04s; }
+.clients-list-item:nth-child(3)  { animation-delay: 0.06s; }
+.clients-list-item:nth-child(4)  { animation-delay: 0.08s; }
+.clients-list-item:nth-child(5)  { animation-delay: 0.10s; }
+.clients-list-item:nth-child(6)  { animation-delay: 0.12s; }
+.clients-list-item:nth-child(7)  { animation-delay: 0.14s; }
+.clients-list-item:nth-child(8)  { animation-delay: 0.16s; }
+.clients-list-item:nth-child(9)  { animation-delay: 0.18s; }
+.clients-list-item:nth-child(10) { animation-delay: 0.20s; }
+
+/* ── Detail cards stagger ─────────────────────────────────── */
+.clients-detail-card {
+  animation: fadeInUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.clients-detail-card:nth-child(1) { animation-delay: 0.05s; }
+.clients-detail-card:nth-child(2) { animation-delay: 0.12s; }
+.clients-detail-card:nth-child(3) { animation-delay: 0.19s; }
+.clients-detail-card:nth-child(4) { animation-delay: 0.26s; }
+
+/* ── Context panel slide in ───────────────────────────────── */
+.clients-context {
+  animation: slideInRight 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+/* ── Button hover effects ─────────────────────────────────── */
+.btn {
+  position: relative; overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn-primary:hover {
+  box-shadow: 0 4px 16px rgba(79,70,229,0.3);
+}
+
+/* ── Add button pop ───────────────────────────────────────── */
+.clients-add-btn {
+  animation: popIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+/* ── Pipeline card entrance ───────────────────────────────── */
+.pipeline-card {
+  animation: fadeInUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Table row hover ──────────────────────────────────────── */
+tbody tr {
+  transition: background 0.2s, transform 0.15s;
+}
+tbody tr:hover {
+  background: var(--primary-glow);
+}
+
+/* ── Form input focus glow ────────────────────────────────── */
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  animation: subtlePulse 1.5s ease-in-out;
+}
+
+/* ── Calendar day hover lift ──────────────────────────────── */
+.cal-day:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  z-index: 1;
+}
+.cal-day {
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Calendar event hover ─────────────────────────────────── */
+.cal-event {
+  transition: all 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cal-event:hover {
+  transform: translateX(2px) scale(1.03);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  filter: none;
+}
+
+/* ── Nav link hover indicator ─────────────────────────────── */
+.nav-links a {
+  position: relative;
+  transition: color 0.2s, background 0.2s;
+}
+.nav-links a::after {
+  content: ''; position: absolute; bottom: -2px; left: 50%; width: 0; height: 2px;
+  background: var(--primary); border-radius: 2px;
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateX(-50%);
+}
+.nav-links a:hover::after, .nav-links a.active::after {
+  width: 70%;
+}
+
+/* ── Tags / chips pop ─────────────────────────────────────── */
+.clients-tag, .clients-filter-chip {
+  transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.clients-filter-chip:hover {
+  transform: translateY(-1px);
+}
+.clients-filter-chip:active {
+  transform: scale(0.95);
+}
+
+/* ── Avatar hover ─────────────────────────────────────────── */
+.clients-item-avatar {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.clients-list-item:hover .clients-item-avatar {
+  transform: scale(1.08);
+}
+
+/* ── Context panel stat rows ──────────────────────────────── */
+.clients-ctx-stat-row {
+  transition: all 0.15s ease;
+}
+.clients-ctx-stat-row:hover {
+  padding-left: 4px;
+  background: rgba(0,0,0,0.02);
+  border-radius: 6px;
+}
+
+/* ── Skeleton loading shimmer ─────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-elevated) 25%, var(--bg-base) 50%, var(--bg-elevated) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Notification badge bounce ────────────────────────────── */
+.badge-count {
+  animation: popIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Smooth scrollbar ─────────────────────────────────────── */
+.clients-list::-webkit-scrollbar,
+.clients-center-scroll::-webkit-scrollbar,
+.clients-context::-webkit-scrollbar {
+  width: 5px;
+}
+.clients-list::-webkit-scrollbar-thumb,
+.clients-center-scroll::-webkit-scrollbar-thumb,
+.clients-context::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.12);
+  border-radius: 10px;
+}
+.clients-list::-webkit-scrollbar-thumb:hover,
+.clients-center-scroll::-webkit-scrollbar-thumb:hover,
+.clients-context::-webkit-scrollbar-thumb:hover {
+  background: rgba(0,0,0,0.2);
+}
+
+/* ── Reduce motion preference ─────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
