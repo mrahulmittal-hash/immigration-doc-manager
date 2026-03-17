@@ -68,10 +68,28 @@ async function buildFullClientDataMap(clientId) {
       // Also create standard field aliases from PIF camelCase keys
       const pifAliases = {
         firstName: 'first_name', lastName: 'last_name', dob: 'date_of_birth',
-        placeOfBirth: 'place_of_birth', passportNumber: 'passport_number',
+        placeOfBirth: 'place_of_birth', countryOfBirth: 'country_of_birth',
+        nationality: 'nationality', countryOfResidence: 'country_of_residence',
+        nativeLanguage: 'native_language',
+        passportNumber: 'passport_number',
         passportIssueDate: 'date_of_issue', passportExpiryDate: 'date_of_expiry',
-        passportCountry: 'country_of_birth', maritalStatus: 'marital_status',
+        passportCountry: 'passport_country', maritalStatus: 'marital_status',
         gender: 'sex', purposeOfVisit: 'purpose_of_visit',
+        currentOccupation: 'occupation', currentEmployer: 'employer',
+        highestEducation: 'education', intendedOccupation: 'intended_occupation',
+        currentAddress: 'address', currentCity: 'city',
+        currentProvince: 'province', currentPostalCode: 'postal_code',
+        currentCountry: 'country',
+        spouseFirstName: 'spouse_first_name', spouseLastName: 'spouse_last_name',
+        spouseNationality: 'spouse_nationality', spousePassportNumber: 'spouse_passport_number',
+        fatherFirstName: 'father_first_name', fatherLastName: 'father_last_name',
+        motherFirstName: 'mother_first_name', motherLastName: 'mother_last_name',
+        fatherCountryOfBirth: 'father_country_of_birth',
+        motherCountryOfBirth: 'mother_country_of_birth',
+        fatherNationality: 'father_nationality', motherNationality: 'mother_nationality',
+        contactInCanadaName: 'contact_in_canada_name',
+        contactInCanadaRelation: 'contact_in_canada_relation',
+        contactInCanadaAddress: 'contact_in_canada_address',
       };
       for (const [pifKey, stdKey] of Object.entries(pifAliases)) {
         if (dataMap[pifKey] && !dataMap[stdKey]) {
