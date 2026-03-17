@@ -503,15 +503,15 @@ td strong { color: var(--text-primary); }
 /* Tooltip */
 .cal-tooltip {
   display: none; position: fixed; z-index: 9999;
-  background: var(--bg-elevated, #1a1a2e); color: #fff;
+  background: #1e293b; color: #f1f5f9;
   padding: 10px 14px; border-radius: 10px;
   font-size: 12px; line-height: 1.5; pointer-events: none;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08);
   max-width: 280px; white-space: normal;
 }
-.cal-tooltip .tt-title { font-weight: 700; font-size: 12px; margin-bottom: 3px; }
-.cal-tooltip .tt-client { font-size: 11px; opacity: 0.85; }
-.cal-tooltip .tt-meta { font-size: 10px; opacity: 0.6; margin-top: 2px; }
+.cal-tooltip .tt-title { font-weight: 700; font-size: 12px; margin-bottom: 3px; color: #ffffff; }
+.cal-tooltip .tt-client { font-size: 11px; color: #94f5e0; font-weight: 600; }
+.cal-tooltip .tt-meta { font-size: 10px; color: #94a3b8; margin-top: 2px; }
 .cal-event.consultation { background: rgba(59,130,246,.15); color: #60a5fa; border: 1px solid rgba(59,130,246,.3); }
 .cal-event.deadline     { background: rgba(239,68,68,.15);  color: #f87171; border: 1px solid rgba(239,68,68,.3); }
 .cal-event.reminder     { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid rgba(245,158,11,.3); }
