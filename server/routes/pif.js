@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { prepareAll, prepareGet, prepareRun } = require('../database');
 const { createMulterStorage, deleteFromS3, isS3Enabled } = require('../services/storageService');
+const { completeWorkflowTask } = require('../services/autoTaskService');
 
 const { storage: pifStorage } = createMulterStorage('pif-documents', 'pif-documents');
 
@@ -705,6 +706,12 @@ router.post('/:token', async (req, res) => {
         }
 
         await prepareRun("UPDATE clients SET pif_status = 'completed', updated_at = NOW() WHERE id = ?", client.id);
+
+        // Auto-task: mark PIF follow-up tasks as done
+        try {
+            const clientName = `${client.first_name} ${client.last_name}`;
+            await completeWorkflowTask(client.id, `Follow up on PIF submission — ${clientName}`);
+        } catch (e) { console.error('Auto-task completion failed:', e.message); }
 
         console.log(`PIF submission received for ${client.first_name} ${client.last_name} (ID: ${client.id})`);
         res.json({ success: true, message: 'Personal Information Form submitted successfully' });

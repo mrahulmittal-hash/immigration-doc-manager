@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { prepareAll, prepareGet, prepareRun } = require('../database');
 const { sendPIFEmail, sendPortalEmail } = require('../services/emailService');
 const { logBulkChanges, logAudit } = require('../middleware/audit');
+const { createWorkflowTask, completeWorkflowTask } = require('../services/autoTaskService');
 
 // GET /api/clients - List all clients
 router.get('/', async (req, res) => {
@@ -73,6 +74,14 @@ router.post('/', async (req, res) => {
         );
 
         const client = await prepareGet('SELECT * FROM clients WHERE id = ?', result.lastInsertRowid);
+
+        // Auto-create workflow tasks
+        const clientName = `${first_name} ${last_name}`;
+        try {
+            await createWorkflowTask(client.id, { title: `Send PIF form to ${clientName}`, category: 'PIF', priority: 'high', dueDays: 1 });
+            await createWorkflowTask(client.id, { title: `Generate retainer agreement for ${clientName}`, category: 'Client Follow-up', priority: 'medium', dueDays: 3 });
+        } catch (e) { console.error('Auto-task creation failed:', e.message); }
+
         res.status(201).json(client);
     } catch (err) {
         console.error('Error creating client:', err);
@@ -105,6 +114,12 @@ router.post('/:id/send-pif', async (req, res) => {
 
         // Update status to sent
         await prepareRun("UPDATE clients SET pif_status = 'sent', updated_at = NOW() WHERE id = ?", id);
+
+        // Auto-tasks: mark "Send PIF" done, create follow-up
+        try {
+            await completeWorkflowTask(id, `Send PIF form to ${clientName}`);
+            await createWorkflowTask(id, { title: `Follow up on PIF submission — ${clientName}`, category: 'PIF', priority: 'medium', dueDays: 7 });
+        } catch (e) { console.error('Auto-task update failed:', e.message); }
 
         res.json({ success: true, ...result });
     } catch (err) {

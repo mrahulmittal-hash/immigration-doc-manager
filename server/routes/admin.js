@@ -4,6 +4,7 @@ const { prepareAll, prepareGet, prepareRun } = require('../database');
 const { mergeTemplate, calculateAdjustedFee } = require('../services/retainerTemplateService');
 const { sendRetainerAgreementEmail } = require('../services/emailService');
 const docusignService = require('../services/docusignService');
+const { createWorkflowTask, completeWorkflowTask } = require('../services/autoTaskService');
 
 // ═══════════════════════════════════════════════════════════════
 // SERVICE FEES
@@ -247,6 +248,13 @@ router.post('/clients/:clientId/retainer-agreement/generate', async (req, res) =
       clientId, effectiveRetainerId || null, html
     );
 
+    // Auto-tasks: mark "Generate retainer agreement" done, create "Send for signing" task
+    try {
+      const clientName = `${clientData.first_name} ${clientData.last_name}`;
+      await completeWorkflowTask(parseInt(clientId), `Generate retainer agreement for ${clientName}`);
+      await createWorkflowTask(parseInt(clientId), { title: `Send retainer agreement for signing — ${clientName}`, category: 'Client Follow-up', priority: 'high', dueDays: 1 });
+    } catch (e) { console.error('Auto-task update failed:', e.message); }
+
     res.json({ id: result.lastInsertRowid, html, message: 'Agreement generated' });
   } catch (err) {
     console.error('Error generating agreement:', err);
@@ -295,6 +303,11 @@ router.post('/retainer-agreements/:id/send-email', async (req, res) => {
 
     // Update agreement status to 'sent'
     await prepareRun('UPDATE client_retainer_agreements SET status = ? WHERE id = ? AND status = ?', 'sent', req.params.id, 'draft');
+
+    // Auto-task: create follow-up for retainer agreement
+    try {
+      await createWorkflowTask(agreement.client_id, { title: `Follow up on retainer agreement — ${clientName}`, category: 'Client Follow-up', priority: 'medium', dueDays: 7 });
+    } catch (e) { console.error('Auto-task creation failed:', e.message); }
 
     res.json({ message: `Agreement sent to ${client.email}`, ...result });
   } catch (err) {
@@ -406,6 +419,12 @@ router.post('/retainer-agreements/:id/send-for-signing', async (req, res) => {
         client.id, `Retainer agreement sent via DocuSign (Envelope: ${result.envelopeId})`
       );
 
+      // Auto-tasks: mark "Send for signing" done, create follow-up
+      try {
+        await completeWorkflowTask(client.id, `Send retainer agreement for signing — ${clientName}`);
+        await createWorkflowTask(client.id, { title: `Follow up on retainer agreement signing — ${clientName}`, category: 'Client Follow-up', priority: 'medium', dueDays: 7 });
+      } catch (e) { console.error('Auto-task update failed:', e.message); }
+
       res.json({ message: `Agreement sent via DocuSign to ${client.email}`, provider: 'docusign', envelopeId: result.envelopeId });
     } else {
       // Built-in signing: create a signature request
@@ -431,6 +450,12 @@ router.post('/retainer-agreements/:id/send-for-signing', async (req, res) => {
          VALUES (?, 'agreement_sent', 'Agreement sent for signing', 'Retainer agreement sent via built-in signing', 'Admin')`,
         client.id
       );
+
+      // Auto-tasks: mark "Send for signing" done, create follow-up
+      try {
+        await completeWorkflowTask(client.id, `Send retainer agreement for signing — ${clientName}`);
+        await createWorkflowTask(client.id, { title: `Follow up on retainer agreement signing — ${clientName}`, category: 'Client Follow-up', priority: 'medium', dueDays: 7 });
+      } catch (e) { console.error('Auto-task update failed:', e.message); }
 
       res.json({ message: `Signing link created for ${client.email}`, provider: 'builtin', signToken });
     }
