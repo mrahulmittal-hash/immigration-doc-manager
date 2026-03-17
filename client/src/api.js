@@ -283,6 +283,12 @@ export const api = {
     getClientRetainerAgreements: (clientId) => request(`/clients/${clientId}/retainer-agreements`),
     getRetainerAgreement: (id) => request(`/retainer-agreements/${id}`),
     sendRetainerAgreementEmail: (id) => request(`/retainer-agreements/${id}/send-email`, { method: 'POST' }),
+    sendAgreementForSigning: (id) => request(`/retainer-agreements/${id}/send-for-signing`, { method: 'POST' }),
+
+    // Admin — Signing Settings
+    getSigningSettings: () => request('/admin/signing-settings'),
+    updateSigningSettings: (data) => request('/admin/signing-settings', { method: 'PUT', body: JSON.stringify(data) }),
+    testSigningConnection: () => request('/admin/signing-settings/test', { method: 'POST' }),
 
     // Audit
     getAuditLog: (clientId, params = {}) => {

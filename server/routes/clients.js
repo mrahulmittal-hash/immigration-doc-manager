@@ -152,12 +152,13 @@ router.get('/:id', async (req, res) => {
             return res.status(404).json({ error: 'Client not found' });
         }
 
-        const [documents, forms, clientData, filledForms, retainers, employerLinks, familyMembers, deadlines, checklistProgress, verificationSummary] = await Promise.all([
+        const [documents, forms, clientData, filledForms, retainers, retainerAgreements, employerLinks, familyMembers, deadlines, checklistProgress, verificationSummary] = await Promise.all([
             prepareAll('SELECT * FROM documents WHERE client_id = ? ORDER BY uploaded_at DESC', client.id),
             prepareAll('SELECT * FROM forms WHERE client_id = ? ORDER BY uploaded_at DESC', client.id),
             prepareAll('SELECT * FROM client_data WHERE client_id = ? ORDER BY field_key', client.id),
             prepareAll('SELECT * FROM filled_forms WHERE client_id = ? ORDER BY filled_at DESC', client.id),
             prepareAll('SELECT * FROM retainers WHERE client_id = ? ORDER BY created_at DESC', client.id),
+            prepareAll('SELECT id, status, generated_at, signed_at, signing_provider, sent_for_signing_at FROM client_retainer_agreements WHERE client_id = ? ORDER BY generated_at DESC', client.id),
             prepareAll(`SELECT ec.*, e.company_name, e.contact_name, e.contact_email, e.industry
                         FROM employer_clients ec JOIN employers e ON e.id = ec.employer_id
                         WHERE ec.client_id = ? ORDER BY ec.created_at DESC`, client.id),
@@ -175,7 +176,8 @@ router.get('/:id', async (req, res) => {
 
         res.json({
             ...client, documents, forms, client_data: clientData, filled_forms: filledForms,
-            retainers, employer_links: employerLinks, family_members: familyMembers, deadlines,
+            retainers, retainer_agreements: retainerAgreements,
+            employer_links: employerLinks, family_members: familyMembers, deadlines,
             checklist_progress: {
                 total: parseInt(checklistProgress?.total || 0),
                 completed: parseInt(checklistProgress?.completed || 0),

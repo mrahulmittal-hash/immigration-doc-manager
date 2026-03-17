@@ -3,6 +3,7 @@ const router = express.Router();
 const { prepareAll, prepareGet, prepareRun } = require('../database');
 const { mergeTemplate, calculateAdjustedFee } = require('../services/retainerTemplateService');
 const { sendRetainerAgreementEmail } = require('../services/emailService');
+const docusignService = require('../services/docusignService');
 
 // ═══════════════════════════════════════════════════════════════
 // SERVICE FEES
@@ -215,14 +216,27 @@ router.post('/clients/:clientId/retainer-agreement/generate', async (req, res) =
     let feeData = { service_name: clientData.visa_type, base_fee: 0, gst_rate: 5 };
     let adjustments = [];
 
-    if (retainer_id) {
-      const retainer = await prepareGet('SELECT * FROM retainers WHERE id = ?', retainer_id);
+    // If no retainer_id provided, auto-find the client's most recent retainer
+    let effectiveRetainerId = retainer_id;
+    if (!effectiveRetainerId) {
+      const latestRetainer = await prepareGet('SELECT id FROM retainers WHERE client_id = ? ORDER BY created_at DESC LIMIT 1', clientId);
+      if (latestRetainer) effectiveRetainerId = latestRetainer.id;
+    }
+
+    if (effectiveRetainerId) {
+      const retainer = await prepareGet('SELECT * FROM retainers WHERE id = ?', effectiveRetainerId);
       if (retainer) {
         feeData = { service_name: retainer.service_type, base_fee: Number(retainer.retainer_fee), gst_rate: 5 };
         // Try to get GST rate from service_fees
         const sf = await prepareGet('SELECT gst_rate FROM service_fees WHERE service_name = ?', retainer.service_type);
         if (sf) feeData.gst_rate = Number(sf.gst_rate);
-        adjustments = await prepareAll('SELECT * FROM fee_adjustments WHERE retainer_id = ?', retainer_id);
+        adjustments = await prepareAll('SELECT * FROM fee_adjustments WHERE retainer_id = ?', effectiveRetainerId);
+      }
+    } else {
+      // No retainer exists — try to get fee from service_fees table based on visa_type
+      const sf = await prepareGet('SELECT * FROM service_fees WHERE service_name = ? AND is_active = true', clientData.visa_type);
+      if (sf) {
+        feeData = { service_name: sf.service_name, base_fee: Number(sf.base_fee), gst_rate: Number(sf.gst_rate) };
       }
     }
 
@@ -230,7 +244,7 @@ router.post('/clients/:clientId/retainer-agreement/generate', async (req, res) =
 
     const result = await prepareRun(
       'INSERT INTO client_retainer_agreements (client_id, retainer_id, generated_html) VALUES (?, ?, ?)',
-      clientId, retainer_id || null, html
+      clientId, effectiveRetainerId || null, html
     );
 
     res.json({ id: result.lastInsertRowid, html, message: 'Agreement generated' });
@@ -285,6 +299,143 @@ router.post('/retainer-agreements/:id/send-email', async (req, res) => {
     res.json({ message: `Agreement sent to ${client.email}`, ...result });
   } catch (err) {
     console.error('Error sending retainer agreement email:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SIGNING SETTINGS
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/admin/signing-settings
+router.get('/admin/signing-settings', async (req, res) => {
+  try {
+    const settings = await prepareGet('SELECT * FROM signing_settings WHERE id = 1');
+    if (!settings) return res.json({ provider: 'builtin' });
+    // Mask sensitive credentials for display
+    res.json({
+      ...settings,
+      docusign_secret: settings.docusign_secret ? '••••••••' : '',
+      docusign_access_token: undefined,
+      docusign_refresh_token: undefined,
+      docusign_token_expires: undefined,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/admin/signing-settings
+router.put('/admin/signing-settings', async (req, res) => {
+  try {
+    const { provider, docusign_account_id, docusign_integration_key, docusign_secret, docusign_base_url, docusign_oauth_url } = req.body;
+    const fields = [];
+    const values = [];
+
+    if (provider !== undefined) { fields.push('provider = ?'); values.push(provider); }
+    if (docusign_account_id !== undefined) { fields.push('docusign_account_id = ?'); values.push(docusign_account_id); }
+    if (docusign_integration_key !== undefined) { fields.push('docusign_integration_key = ?'); values.push(docusign_integration_key); }
+    if (docusign_secret !== undefined && docusign_secret !== '••••••••') { fields.push('docusign_secret = ?'); values.push(docusign_secret); }
+    if (docusign_base_url !== undefined) { fields.push('docusign_base_url = ?'); values.push(docusign_base_url); }
+    if (docusign_oauth_url !== undefined) { fields.push('docusign_oauth_url = ?'); values.push(docusign_oauth_url); }
+
+    if (fields.length === 0) return res.json({ message: 'No changes' });
+
+    fields.push('updated_at = NOW()');
+    // Clear cached token when credentials change
+    fields.push('docusign_access_token = NULL');
+    fields.push('docusign_token_expires = NULL');
+
+    await prepareRun(`UPDATE signing_settings SET ${fields.join(', ')} WHERE id = 1`, ...values);
+    docusignService.clearSettingsCache();
+
+    res.json({ message: 'Signing settings updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/signing-settings/test
+router.post('/admin/signing-settings/test', async (req, res) => {
+  try {
+    const result = await docusignService.testConnection();
+    res.json(result);
+  } catch (err) {
+    res.json({ success: false, message: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// SEND FOR SIGNING (DocuSign or Built-in)
+// ═══════════════════════════════════════════════════════════════
+
+// POST /api/retainer-agreements/:id/send-for-signing
+router.post('/retainer-agreements/:id/send-for-signing', async (req, res) => {
+  try {
+    const agreement = await prepareGet('SELECT * FROM client_retainer_agreements WHERE id = ?', req.params.id);
+    if (!agreement) return res.status(404).json({ error: 'Agreement not found' });
+
+    const client = await prepareGet('SELECT * FROM clients WHERE id = ?', agreement.client_id);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (!client.email) return res.status(400).json({ error: 'Client has no email address on file' });
+
+    const clientName = `${client.first_name} ${client.last_name}`;
+    const settings = await prepareGet('SELECT provider FROM signing_settings WHERE id = 1');
+    const provider = settings?.provider || 'builtin';
+
+    if (provider === 'docusign') {
+      // Determine webhook URL (use HOST header or env)
+      const protocol = req.get('x-forwarded-proto') || req.protocol;
+      const host = req.get('x-forwarded-host') || req.get('host');
+      const webhookUrl = process.env.DOCUSIGN_WEBHOOK_URL || `${protocol}://${host}/api/webhooks/docusign`;
+
+      const result = await docusignService.createAndSendEnvelope(
+        agreement.generated_html, clientName, client.email, agreement.id, webhookUrl
+      );
+
+      await prepareRun(
+        `UPDATE client_retainer_agreements SET status = 'sent', signing_provider = 'docusign',
+         docusign_envelope_id = ?, sent_for_signing_at = NOW() WHERE id = ?`,
+        result.envelopeId, agreement.id
+      );
+
+      // Timeline event
+      await prepareRun(
+        `INSERT INTO client_timeline (client_id, event_type, title, description, created_by)
+         VALUES (?, 'agreement_sent', 'Agreement sent for signing', ?, 'Admin')`,
+        client.id, `Retainer agreement sent via DocuSign (Envelope: ${result.envelopeId})`
+      );
+
+      res.json({ message: `Agreement sent via DocuSign to ${client.email}`, provider: 'docusign', envelopeId: result.envelopeId });
+    } else {
+      // Built-in signing: create a signature request
+      const { v4: uuidv4 } = require('uuid');
+      const signToken = uuidv4();
+      const tokenExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      await prepareRun(
+        `INSERT INTO signatures (client_id, document_type, document_name, status, sign_token, token_expires, signing_provider, requested_by)
+         VALUES (?, 'retainer_agreement', 'Retainer Agreement', 'pending', ?, ?, 'builtin', 'Admin')`,
+        client.id, signToken, tokenExpires.toISOString()
+      );
+
+      await prepareRun(
+        `UPDATE client_retainer_agreements SET status = 'sent', signing_provider = 'builtin',
+         sent_for_signing_at = NOW() WHERE id = ?`,
+        agreement.id
+      );
+
+      // Timeline event
+      await prepareRun(
+        `INSERT INTO client_timeline (client_id, event_type, title, description, created_by)
+         VALUES (?, 'agreement_sent', 'Agreement sent for signing', 'Retainer agreement sent via built-in signing', 'Admin')`,
+        client.id
+      );
+
+      res.json({ message: `Signing link created for ${client.email}`, provider: 'builtin', signToken });
+    }
+  } catch (err) {
+    console.error('Error sending agreement for signing:', err);
     res.status(500).json({ error: err.message });
   }
 });

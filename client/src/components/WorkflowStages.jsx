@@ -51,7 +51,10 @@ const WORKFLOW_STAGES = [
     items: [
       { key: 'pif_sent', label: 'PIF form sent to client', check: c => c.pif_status === 'sent' || c.pif_status === 'completed' },
       { key: 'pif_completed', label: 'PIF form completed', check: c => c.pif_status === 'completed' },
+      { key: 'agreement_generated', label: 'Retainer agreement generated', check: c => (c.retainer_agreements?.length || 0) > 0 },
+      { key: 'agreement_sent', label: 'Agreement sent for signing', check: c => c.retainer_agreements?.some(a => ['sent', 'signed'].includes(a.status)) || false },
       { key: 'retainer', label: 'Retainer agreement signed', check: c => {
+        if (c.retainer_agreements?.some(a => a.status === 'signed')) return true;
         const stage = c.pipeline_stage || 'lead';
         const stageOrder = ['lead', 'consultation', 'retainer_signed', 'in_progress', 'submitted', 'approved'];
         return stageOrder.indexOf(stage) >= 2;

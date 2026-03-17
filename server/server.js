@@ -36,6 +36,7 @@ const tasksRouter = require('./routes/tasks');
 const irccTemplatesRouter = require('./routes/ircc-templates');
 const auditRouter = require('./routes/audit');
 const adminRouter = require('./routes/admin');
+const webhooksRouter = require('./routes/webhooks');
 
 // Mount routes
 // Staff-facing routes protected by requireAuth (JWT or dev pass-through)
@@ -63,6 +64,7 @@ app.use('/api', requireAuth, adminRouter);  // non-admin routes in admin.js (fee
 app.use('/api/pif', pifRouter);
 app.use('/api/sign', signRouter);
 app.use('/api/portal', portalRouter);
+app.use('/api/webhooks', webhooksRouter);  // DocuSign Connect callback (public, verified by HMAC)
 
 // Health check
 app.get('/api/health', (req, res) => {

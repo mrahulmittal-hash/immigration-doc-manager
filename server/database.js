@@ -764,9 +764,38 @@ async function initDatabase() {
         generated_html TEXT NOT NULL,
         status         TEXT DEFAULT 'draft',
         generated_at   TIMESTAMPTZ DEFAULT NOW(),
-        signed_at      TIMESTAMPTZ
+        signed_at      TIMESTAMPTZ,
+        docusign_envelope_id TEXT,
+        signing_provider     TEXT DEFAULT 'builtin',
+        sent_for_signing_at  TIMESTAMPTZ
       )
     `);
+
+    // ── Signing Settings ─────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS signing_settings (
+        id                       SERIAL PRIMARY KEY,
+        provider                 TEXT DEFAULT 'docusign',
+        docusign_account_id      TEXT DEFAULT '',
+        docusign_integration_key TEXT DEFAULT '',
+        docusign_secret          TEXT DEFAULT '',
+        docusign_base_url        TEXT DEFAULT 'https://demo.docusign.net/restapi',
+        docusign_oauth_url       TEXT DEFAULT 'https://account-d.docusign.com',
+        docusign_access_token    TEXT,
+        docusign_refresh_token   TEXT,
+        docusign_token_expires   TIMESTAMPTZ,
+        updated_at               TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await client.query(`INSERT INTO signing_settings (id) VALUES (1) ON CONFLICT DO NOTHING`);
+
+    // Add DocuSign columns to existing tables if missing
+    await client.query(`ALTER TABLE signatures ADD COLUMN IF NOT EXISTS docusign_envelope_id TEXT`);
+    await client.query(`ALTER TABLE signatures ADD COLUMN IF NOT EXISTS signing_provider TEXT DEFAULT 'builtin'`);
+    // Add DocuSign columns to client_retainer_agreements if they don't exist (for existing DBs)
+    await client.query(`ALTER TABLE client_retainer_agreements ADD COLUMN IF NOT EXISTS docusign_envelope_id TEXT`).catch(() => {});
+    await client.query(`ALTER TABLE client_retainer_agreements ADD COLUMN IF NOT EXISTS signing_provider TEXT DEFAULT 'builtin'`).catch(() => {});
+    await client.query(`ALTER TABLE client_retainer_agreements ADD COLUMN IF NOT EXISTS sent_for_signing_at TIMESTAMPTZ`).catch(() => {});
 
     console.log('✅ PostgreSQL database initialized successfully');
   } finally {
