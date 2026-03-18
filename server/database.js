@@ -1,15 +1,19 @@
 const { Pool } = require('pg');
 
-// Connection pool — reads from environment variables
-const pool = new Pool({
-  host:     process.env.DB_HOST     || 'localhost',
-  port:     parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME     || 'propgent',
-  user:     process.env.DB_USER     || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  ssl:      process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  max: 20, // connection pool size
-});
+// Connection pool — supports DATABASE_URL (Neon) or individual env vars
+console.log('DB config: DATABASE_URL', process.env.DATABASE_URL ? 'SET (' + process.env.DATABASE_URL.substring(0, 30) + '...)' : 'NOT SET');
+const poolConfig = process.env.DATABASE_URL
+  ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 20 }
+  : {
+      host:     process.env.DB_HOST     || 'localhost',
+      port:     parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME     || 'propgent',
+      user:     process.env.DB_USER     || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres',
+      ssl:      process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+      max: 20,
+    };
+const pool = new Pool(poolConfig);
 
 pool.on('error', (err) => {
   console.error('Unexpected PostgreSQL pool error:', err);
