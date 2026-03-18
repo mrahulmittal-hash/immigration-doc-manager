@@ -1,7 +1,6 @@
 const { Pool } = require('pg');
 
 // Connection pool — supports DATABASE_URL (Neon) or individual env vars
-console.log('DB config: DATABASE_URL', process.env.DATABASE_URL ? 'SET (' + process.env.DATABASE_URL.substring(0, 30) + '...)' : 'NOT SET');
 const poolConfig = process.env.DATABASE_URL
   ? { connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false }, max: 20 }
   : {
