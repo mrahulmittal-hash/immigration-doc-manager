@@ -40,12 +40,18 @@ const emailIngestionRouter = require('./routes/emailIngestion');
 const webhooksRouter = require('./routes/webhooks');
 
 // Mount routes
+// Unprotected routes first (login, public endpoints)
+app.use('/api/users', usersRouter);  // login/refresh/register handled inside — protected routes use requireAuth internally
+app.use('/api/pif', pifRouter);      // magic-link PIF form (public)
+app.use('/api/sign', signRouter);    // e-signature (public)
+app.use('/api/portal', portalRouter); // client portal (public)
+app.use('/api/webhooks', webhooksRouter);  // DocuSign Connect callback (public, verified by HMAC)
+
 // Staff-facing routes protected by requireAuth (JWT or dev pass-through)
 app.use('/api/clients', requireAuth, clientsRouter);
 app.use('/api', requireAuth, documentsRouter);
 app.use('/api', requireAuth, formsRouter);
 app.use('/api', requireAuth, clientDataRouter);
-app.use('/api/users', usersRouter);  // login/refresh/register handled inside — protected routes use requireAuth internally
 app.use('/api', requireAuth, timelineRouter);
 app.use('/api', requireAuth, notesRouter);
 app.use('/api', requireAuth, irccRouter);
@@ -62,11 +68,6 @@ app.use('/api', requireAuth, auditRouter);
 app.use('/api/admin', requireAuth, requireRole('Admin'), adminRouter);
 app.use('/api/admin', requireAuth, requireRole('Admin'), emailIngestionRouter);
 app.use('/api', requireAuth, adminRouter);  // non-admin routes in admin.js (fee-adjustments, retainer-agreements, service-fees/active)
-// PUBLIC routes (magic-link flow — no login required for clients)
-app.use('/api/pif', pifRouter);
-app.use('/api/sign', signRouter);
-app.use('/api/portal', portalRouter);
-app.use('/api/webhooks', webhooksRouter);  // DocuSign Connect callback (public, verified by HMAC)
 
 // Health check
 app.get('/api/health', (req, res) => {
