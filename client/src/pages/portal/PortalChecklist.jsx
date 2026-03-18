@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Circle, Upload, AlertCircle, FolderOpen } from 'lucide-react';
+import { API_URL } from '../../api';
 
 const CATEGORY_LABELS = {
   identity: 'Identity Documents',
@@ -24,7 +25,7 @@ export default function PortalChecklist({ token }) {
   const uploadItemRef = useRef(null);
 
   const load = () => {
-    fetch(`/api/portal/${token}/checklist`)
+    fetch(`${API_URL}/api/portal/${token}/checklist`)
       .then(r => r.json())
       .then(setData)
       .finally(() => setLoading(false));
@@ -47,7 +48,7 @@ export default function PortalChecklist({ token }) {
     formData.append('checklist_item_id', uploadItemRef.current);
 
     try {
-      const res = await fetch(`/api/portal/${token}/documents`, {
+      const res = await fetch(`${API_URL}/api/portal/${token}/documents`, {
         method: 'POST',
         body: formData,
       });

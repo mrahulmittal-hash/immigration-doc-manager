@@ -3,6 +3,7 @@ import {
   DollarSign, Wallet, ArrowUpFromLine, FileText, Shield, Clock, Users,
   Download, Search, Plus, CheckCircle
 } from 'lucide-react';
+import { API_URL } from '../api';
 
 const TX_TYPE_STYLES = {
   deposit_to_trust: { color: '#10b981', label: 'Deposit', prefix: '+' },
@@ -20,7 +21,7 @@ export default function TrustAccounting() {
 
   const load = async () => {
     try {
-      const res = await fetch('/api/accounting/summary');
+      const res = await fetch(`${API_URL}/api/accounting/summary`);
       const data = await res.json();
       setSummary(data);
     } catch (err) { console.error('Failed to load accounting:', err); }
@@ -33,7 +34,7 @@ export default function TrustAccounting() {
 
   const handleExportAudit = async () => {
     try {
-      const res = await fetch('/api/accounting/audit-log');
+      const res = await fetch(`${API_URL}/api/accounting/audit-log`);
       const data = await res.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);

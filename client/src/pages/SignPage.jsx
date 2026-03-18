@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { FileCheck, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { API_URL } from '../api';
 import SignaturePad from '../components/SignaturePad';
 
 export default function SignPage() {
@@ -13,7 +14,7 @@ export default function SignPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/sign/${token}`)
+    fetch(`${API_URL}/api/sign/${token}`)
       .then(r => r.json())
       .then(data => {
         if (data.error) setError(data.error);
@@ -27,7 +28,7 @@ export default function SignPage() {
     if (!signatureData) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/sign/${token}`, {
+      const res = await fetch(`${API_URL}/api/sign/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ signature_data: signatureData }),
@@ -115,7 +116,7 @@ export default function SignPage() {
           {docInfo?.has_pdf && (
             <div style={{ marginBottom: 24, textAlign: 'center' }}>
               <a
-                href={`/api/sign/${token}/preview`}
+                href={`${API_URL}/api/sign/${token}/preview`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ color: '#6366f1', fontSize: 14, textDecoration: 'underline' }}

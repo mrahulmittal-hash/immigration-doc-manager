@@ -3,6 +3,7 @@ import {
   Shield, Briefcase, Eye, KeyRound, Users, CheckCircle, Clock, Crown,
   Trash2, Pause, Play, X, Lightbulb, Check, Plus, Search
 } from 'lucide-react';
+import { API_URL } from '../api';
 
 const ROLES = ['Admin', 'Case Manager', 'Viewer'];
 
@@ -49,7 +50,7 @@ export default function UsersPage({ embedded = false }) {
 
   async function fetchUsers() {
     try {
-      const res = await fetch('/api/users');
+      const res = await fetch(`${API_URL}/api/users`);
       if (!res.ok) throw new Error('Failed to fetch users');
       const data = await res.json();
       setUsers(data);

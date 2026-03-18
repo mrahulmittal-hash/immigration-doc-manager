@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, DollarSign } from 'lucide-react';
+import { API_URL } from '../api';
 
 const TYPE_CONFIG = {
   deposit: { label: 'Deposit to Trust', color: '#10b981', verb: 'Deposit' },
@@ -29,7 +30,7 @@ export default function TransactionModal({ type, clientId, onComplete, onClose }
 
     try {
       const endpoint = type === 'deposit' ? 'deposit' : type === 'release' ? 'release' : 'refund';
-      const res = await fetch(`/api/clients/${clientId}/trust/${endpoint}`, {
+      const res = await fetch(`${API_URL}/api/clients/${clientId}/trust/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

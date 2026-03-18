@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Globe, FileText, CheckSquare, Clock, Loader, AlertCircle } from 'lucide-react';
+import { API_URL } from '../api';
 import PortalStatus from './portal/PortalStatus';
 import PortalChecklist from './portal/PortalChecklist';
 import PortalDocuments from './portal/PortalDocuments';
@@ -19,7 +20,7 @@ export default function ClientPortal() {
   const [activeTab, setActiveTab] = useState('status');
 
   useEffect(() => {
-    fetch(`/api/portal/${token}`)
+    fetch(`${API_URL}/api/portal/${token}`)
       .then(r => r.json())
       .then(data => {
         if (data.error) setError(data.error);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, Circle, Clock } from 'lucide-react';
+import { API_URL } from '../../api';
 
 export default function PortalStatus({ token }) {
   const [status, setStatus] = useState(null);
@@ -8,8 +9,8 @@ export default function PortalStatus({ token }) {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/portal/${token}/status`).then(r => r.json()),
-      fetch(`/api/portal/${token}/timeline`).then(r => r.json()),
+      fetch(`${API_URL}/api/portal/${token}/status`).then(r => r.json()),
+      fetch(`${API_URL}/api/portal/${token}/timeline`).then(r => r.json()),
     ]).then(([statusData, timelineData]) => {
       setStatus(statusData);
       setTimeline(timelineData);

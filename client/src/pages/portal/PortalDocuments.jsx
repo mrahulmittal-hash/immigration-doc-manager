@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { FileText, Upload, Trash2, Download } from 'lucide-react';
+import { API_URL } from '../../api';
 
 export default function PortalDocuments({ token }) {
   const [docs, setDocs] = useState([]);
@@ -9,7 +10,7 @@ export default function PortalDocuments({ token }) {
   const fileRef = useRef(null);
 
   const load = () => {
-    fetch(`/api/portal/${token}/documents`)
+    fetch(`${API_URL}/api/portal/${token}/documents`)
       .then(r => r.json())
       .then(data => setDocs(Array.isArray(data) ? data : []))
       .finally(() => setLoading(false));
@@ -25,7 +26,7 @@ export default function PortalDocuments({ token }) {
     for (const f of files) formData.append('files', f);
 
     try {
-      const res = await fetch(`/api/portal/${token}/documents`, { method: 'POST', body: formData });
+      const res = await fetch(`${API_URL}/api/portal/${token}/documents`, { method: 'POST', body: formData });
       const result = await res.json();
       if (result.success) {
         setToast('Documents uploaded!');
@@ -45,7 +46,7 @@ export default function PortalDocuments({ token }) {
   const handleDelete = async (docId) => {
     if (!confirm('Delete this document?')) return;
     try {
-      const res = await fetch(`/api/portal/${token}/documents/${docId}`, { method: 'DELETE' });
+      const res = await fetch(`${API_URL}/api/portal/${token}/documents/${docId}`, { method: 'DELETE' });
       const result = await res.json();
       if (result.success) load();
       else setToast(result.error || 'Delete failed');

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../api';
 
 const TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -11,7 +12,7 @@ export default function SessionWrapper({ children, user, onLogout }) {
         if (!user) return;
         
         try {
-            await fetch('/api/users/logout', {
+            await fetch(`${API_URL}/api/users/logout`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.id })

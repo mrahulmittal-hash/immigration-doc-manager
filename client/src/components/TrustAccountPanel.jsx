@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Wallet, ArrowDownToLine, ArrowUpFromLine, RotateCcw, History } from 'lucide-react';
+import { API_URL } from '../api';
 import TransactionModal from './TransactionModal';
 import MilestoneTracker from './MilestoneTracker';
 
@@ -11,7 +12,7 @@ export default function TrustAccountPanel({ clientId }) {
 
   const load = async () => {
     try {
-      const res = await fetch(`/api/clients/${clientId}/trust`);
+      const res = await fetch(`${API_URL}/api/clients/${clientId}/trust`);
       const result = await res.json();
       setData(result);
     } catch (err) {
@@ -24,7 +25,7 @@ export default function TrustAccountPanel({ clientId }) {
   useEffect(() => { load(); }, [clientId]);
 
   const handleReleaseMilestone = async (milestoneId) => {
-    const res = await fetch(`/api/milestones/${milestoneId}/release`, { method: 'POST' });
+    const res = await fetch(`${API_URL}/api/milestones/${milestoneId}/release`, { method: 'POST' });
     const result = await res.json();
     if (result.error) {
       setToast(result.error);
