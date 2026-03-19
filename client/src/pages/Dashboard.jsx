@@ -326,7 +326,7 @@ export default function Dashboard() {
       )}
 
       {/* Bottom Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 28 }}>
+      <div className="dash-bottom-grid">
         {/* Recent Clients */}
         <div className="card">
           <div className="card-header">

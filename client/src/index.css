@@ -2496,6 +2496,10 @@ td strong { color: var(--text-primary); }
 .dash-stat-accent {
   position: absolute; top: 0; left: 0; width: 100%; height: 3px;
 }
+.dash-bottom-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 20px; margin-top: 28px;
+}
 
 /* Dashboard Task Marquee Banner */
 .dash-task-marquee {
@@ -3264,6 +3268,7 @@ tbody tr:hover {
   .dash-stat-value { font-size: 22px; }
   .dash-stat-card { padding: 14px; }
   .dash-workspace-grid { grid-template-columns: 1fr; gap: 12px; }
+  .dash-bottom-grid { grid-template-columns: 1fr; gap: 14px; margin-top: 18px; }
 
   /* ── 3-Panel Client Layout → Stack ────────────────────── */
   .clients-3panel {
