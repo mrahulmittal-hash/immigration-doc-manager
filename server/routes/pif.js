@@ -723,10 +723,30 @@ router.post('/data/:clientId/send-reverification', async (req, res) => {
         const changedFields = typeof request.changed_fields === 'string' ? JSON.parse(request.changed_fields) : request.changed_fields;
         const changeCount = Object.keys(changedFields).length;
 
-        // Send re-verification email
+        // Check that all flagged fields have comments (mandatory)
+        const fieldsWithoutComments = await prepareAll(
+            `SELECT field_key FROM pif_field_verifications
+             WHERE client_id = ? AND verified = false AND (comment IS NULL OR comment = '')`,
+            clientId
+        );
+        if (fieldsWithoutComments.length > 0) {
+            return res.status(400).json({
+                error: 'All flagged fields must have a comment before resending the form to the client.',
+                fields_without_comments: fieldsWithoutComments.map(f => f.field_key)
+            });
+        }
+
+        // Gather comments for the email
+        const fieldComments = await prepareAll(
+            `SELECT field_key, comment FROM pif_field_verifications
+             WHERE client_id = ? AND verified = false AND comment IS NOT NULL AND comment != ''`,
+            clientId
+        );
+
+        // Send re-verification email with comments
         const { sendPIFReverificationEmail } = require('../services/emailService');
         const clientName = `${client.first_name} ${client.last_name}`;
-        await sendPIFReverificationEmail(client.email, clientName, client.form_token, changeCount);
+        await sendPIFReverificationEmail(client.email, clientName, client.form_token, changeCount, fieldComments);
 
         // Update request status
         await prepareRun(`UPDATE pif_reverification_requests SET status = 'sent' WHERE id = ?`, request.id);
@@ -776,6 +796,27 @@ router.get('/data/:clientId/reverification-history', async (req, res) => {
 // ═══════════════════════════════════════════════════════════════
 // /:token wildcard routes — MUST come AFTER /data/* routes
 // ═══════════════════════════════════════════════════════════════
+
+// GET /api/pif/:token/field-comments — Public: client fetches case manager comments for flagged fields
+router.get('/:token/field-comments', async (req, res) => {
+    try {
+        const { token } = req.params;
+        const client = await prepareGet('SELECT id FROM clients WHERE form_token = ?', token);
+        if (!client) return res.status(404).json({ error: 'Invalid token' });
+
+        const rows = await prepareAll(
+            `SELECT field_key, comment FROM pif_field_verifications
+             WHERE client_id = ? AND verified = false AND comment IS NOT NULL AND comment != ''`,
+            client.id
+        );
+        const comments = {};
+        rows.forEach(r => { comments[r.field_key] = r.comment; });
+        res.json({ comments });
+    } catch (err) {
+        console.error('Error fetching field comments:', err);
+        res.status(500).json({ error: 'Failed to fetch comments' });
+    }
+});
 
 // GET /api/pif/:token — Validate token and return client info for the form header
 router.get('/:token', async (req, res) => {

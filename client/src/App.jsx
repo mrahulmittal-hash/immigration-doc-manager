@@ -35,7 +35,7 @@ const NAV_ITEMS = [
 ];
 
 const MORE_ITEMS = [
-  { to: '/retainers',    icon: CreditCard,  label: 'Trust Accounting' },
+  { to: '/retainers',    icon: CreditCard,  label: 'Accounting' },
   { to: '/ircc-updates', icon: Newspaper,   label: 'IRCC Updates' },
   { to: '/users',        icon: UserCog,     label: 'Users' },
   { to: '/admin',          icon: Briefcase, label: 'Admin Settings' },

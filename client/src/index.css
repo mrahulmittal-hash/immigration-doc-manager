@@ -1116,6 +1116,15 @@ td strong { color: var(--text-primary); }
   font-size: 11px; font-weight: 600; color: #f87171;
   margin-top: 6px;
 }
+/* ── Case manager inline comments ────────────────────────── */
+.pif-field-comment {
+  background: #fffbeb; border-left: 3px solid #f59e0b;
+  padding: 8px 12px; margin-top: 6px; border-radius: 0 6px 6px 0;
+  font-size: 12px; color: #92400e; line-height: 1.5;
+}
+.pif-field-has-comment { border-left: 3px solid #f59e0b; padding-left: 10px; }
+.pif-ctrl.pif-ctrl-commented { border-color: rgba(245, 158, 11, 0.5) !important; }
+
 .pif-ctrl.pif-ctrl-err {
   border-color: rgba(239, 68, 68, 0.6) !important;
   background: rgba(239, 68, 68, 0.04) !important;

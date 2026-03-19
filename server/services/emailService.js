@@ -285,7 +285,7 @@ async function sendRetainerAgreementEmail(clientEmail, clientName, agreementHtml
 // -----------------------------------------------------------------------
 // PIF Re-verification Request Email
 // -----------------------------------------------------------------------
-async function sendPIFReverificationEmail(clientEmail, clientName, formToken, changeCount) {
+async function sendPIFReverificationEmail(clientEmail, clientName, formToken, changeCount, fieldComments = []) {
     const formUrl = `${FRONTEND_URL}/pif/${formToken}?reverify=1`;
     const subject = `Action Required: Please Review Changes to Your Information — PropAgent`;
     const htmlBody = `<!DOCTYPE html>
@@ -309,6 +309,14 @@ async function sendPIFReverificationEmail(clientEmail, clientName, formToken, ch
               Your previous consent has been reset and you must re-consent after reviewing.
             </p>
           </div>
+          ${fieldComments.length > 0 ? `
+          <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 20px; margin: 20px 0;">
+            <p style="color: #0c4a6e; font-size: 14px; margin: 0 0 12px; font-weight: 600;">📝 Comments from your case manager:</p>
+            <ul style="margin: 0; padding-left: 20px;">
+              ${fieldComments.map(c => `<li style="color: #0369a1; font-size: 13px; margin-bottom: 6px; line-height: 1.5;"><strong>${(c.field_key || '').replace(/\./g, ' › ')}</strong>: ${c.comment}</li>`).join('')}
+            </ul>
+          </div>
+          ` : ''}
           <div style="text-align: center; margin: 32px 0;">
             <a href="${formUrl}"
                style="display: inline-block; background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
@@ -339,4 +347,62 @@ async function sendPIFReverificationEmail(clientEmail, clientName, formToken, ch
     return await sendViaGmail(clientEmail, subject, htmlBody, formUrl, clientName);
 }
 
-module.exports = { sendPIFEmail, sendPortalEmail, sendSignatureRequestEmail, sendRetainerAgreementEmail, sendPIFReverificationEmail };
+// -----------------------------------------------------------------------
+// Invoice Email with PDF Attachment
+// -----------------------------------------------------------------------
+async function sendInvoiceEmail(clientEmail, clientName, invoiceNumber, pdfBuffer) {
+    const subject = `Invoice ${invoiceNumber} — PropAgent Immigration Services`;
+    const htmlBody = `<!DOCTYPE html>
+    <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+    <body style="margin:0; padding:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5;">
+      <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%); border-radius: 16px 16px 0 0; padding: 30px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700;">PropAgent</h1>
+          <p style="color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 13px;">RCIC Immigration Services</p>
+        </div>
+        <div style="background: #ffffff; padding: 30px; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+          <h2 style="color: #1a1a2e; font-size: 20px; margin: 0 0 14px;">Invoice ${invoiceNumber}</h2>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 14px;">
+            Dear ${clientName},
+          </p>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0 0 14px;">
+            Please find attached your invoice for immigration services. We appreciate your prompt payment.
+          </p>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6; margin: 0;">
+            If you have any questions about this invoice, please don't hesitate to contact us.
+          </p>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0 0 16px 16px; padding: 20px 30px; text-align: center;">
+          <p style="color: #94a3b8; font-size: 12px; margin: 0;">PropAgent — RCIC Immigration Platform</p>
+        </div>
+      </div>
+    </body></html>`;
+
+    // Use nodemailer for attachment support
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.log(`[Invoice Email Simulated] To: ${clientEmail}, Invoice: ${invoiceNumber}`);
+        return { success: true, simulated: true };
+    }
+
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    });
+
+    await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: clientEmail,
+        subject,
+        html: htmlBody,
+        attachments: [{
+            filename: `${invoiceNumber}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf',
+        }],
+    });
+
+    return { success: true, simulated: false };
+}
+
+module.exports = { sendPIFEmail, sendPortalEmail, sendSignatureRequestEmail, sendRetainerAgreementEmail, sendPIFReverificationEmail, sendInvoiceEmail };

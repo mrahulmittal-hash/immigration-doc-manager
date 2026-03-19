@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { prepareAll, prepareGet, prepareRun, getDb } = require('../database');
-const { ensureTrustAccount, recordTransaction, generateInvoiceNumber, getClientFinancialSummary } = require('../services/accountingService');
+const { ensureTrustAccount, recordTransaction, generateInvoiceNumber, generateInvoicePDF, generateReceiptPDF, getClientFinancialSummary } = require('../services/accountingService');
 
 // ═══════════════════════════════════════════════════════════════
 // RETAINERS CRUD
@@ -461,6 +461,139 @@ router.get('/accounting/audit-log', async (req, res) => {
   } catch (err) {
     console.error('Error generating audit log:', err);
     res.status(500).json({ error: 'Failed to generate audit log' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// CLIENT PAYMENTS & BALANCE (new accounting)
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/clients/:clientId/payments — all payments for client
+router.get('/clients/:clientId/payments', async (req, res) => {
+  try {
+    const payments = await prepareAll(
+      'SELECT * FROM payments WHERE client_id = ? ORDER BY payment_date DESC, created_at DESC',
+      req.params.clientId
+    );
+    res.json(payments);
+  } catch (err) {
+    console.error('Error fetching payments:', err);
+    res.status(500).json({ error: 'Failed to fetch payments' });
+  }
+});
+
+// POST /api/clients/:clientId/payments — record a payment
+router.post('/clients/:clientId/payments', async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.clientId);
+    const { amount, payment_method, payment_date, reference_number, retainer_id, invoice_id, notes } = req.body;
+    if (!amount) return res.status(400).json({ error: 'Amount is required' });
+
+    const result = await prepareRun(
+      `INSERT INTO payments (client_id, retainer_id, amount, payment_method, payment_date, reference_number, invoice_id, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      clientId, retainer_id || null, parseFloat(amount),
+      payment_method || null, payment_date || new Date().toISOString().split('T')[0],
+      reference_number || null, invoice_id || null, notes || null
+    );
+
+    // Update retainer amount_paid if linked
+    if (retainer_id) {
+      await prepareRun(
+        `UPDATE retainers SET amount_paid = amount_paid + ?, updated_at = NOW(),
+         status = CASE WHEN amount_paid + ? >= retainer_fee THEN 'paid'
+                       WHEN amount_paid + ? > 0 THEN 'partial'
+                       ELSE status END
+         WHERE id = ?`,
+        parseFloat(amount), parseFloat(amount), parseFloat(amount), retainer_id
+      );
+    }
+
+    const payment = await prepareGet('SELECT * FROM payments WHERE id = ?', result.lastInsertRowid);
+    res.status(201).json(payment);
+  } catch (err) {
+    console.error('Error recording payment:', err);
+    res.status(500).json({ error: 'Failed to record payment' });
+  }
+});
+
+// GET /api/clients/:clientId/balance — outstanding balance
+router.get('/clients/:clientId/balance', async (req, res) => {
+  try {
+    const clientId = parseInt(req.params.clientId);
+    const invoiceTotal = await prepareGet(
+      'SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE client_id = ?', clientId
+    );
+    const paymentTotal = await prepareGet(
+      'SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE client_id = ?', clientId
+    );
+    const totalInvoiced = parseFloat(invoiceTotal?.total || 0);
+    const totalPaid = parseFloat(paymentTotal?.total || 0);
+    res.json({
+      total_invoiced: totalInvoiced,
+      total_paid: totalPaid,
+      balance_due: totalInvoiced - totalPaid,
+    });
+  } catch (err) {
+    console.error('Error fetching balance:', err);
+    res.status(500).json({ error: 'Failed to fetch balance' });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// INVOICE & RECEIPT PDF GENERATION
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/invoices/:id/pdf — generate/download invoice PDF
+router.get('/invoices/:id/pdf', async (req, res) => {
+  try {
+    const pdfBuffer = await generateInvoicePDF(parseInt(req.params.id));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="invoice-${req.params.id}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Error generating invoice PDF:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate invoice PDF' });
+  }
+});
+
+// GET /api/payments/:id/receipt-pdf — generate/download receipt PDF
+router.get('/payments/:id/receipt-pdf', async (req, res) => {
+  try {
+    const pdfBuffer = await generateReceiptPDF(parseInt(req.params.id));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="receipt-${req.params.id}.pdf"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Error generating receipt PDF:', err);
+    res.status(500).json({ error: err.message || 'Failed to generate receipt PDF' });
+  }
+});
+
+// POST /api/invoices/:id/email — email invoice PDF to client
+router.post('/invoices/:id/email', async (req, res) => {
+  try {
+    const invoice = await prepareGet(
+      'SELECT i.*, c.first_name, c.last_name, c.email FROM invoices i JOIN clients c ON c.id = i.client_id WHERE i.id = ?',
+      parseInt(req.params.id)
+    );
+    if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+    if (!invoice.email) return res.status(400).json({ error: 'Client has no email address' });
+
+    const pdfBuffer = await generateInvoicePDF(parseInt(req.params.id));
+    const { sendInvoiceEmail } = require('../services/emailService');
+    const clientName = `${invoice.first_name} ${invoice.last_name}`;
+    await sendInvoiceEmail(invoice.email, clientName, invoice.invoice_number, pdfBuffer);
+
+    // Update status to sent if draft
+    if (invoice.status === 'draft') {
+      await prepareRun("UPDATE invoices SET status = 'sent' WHERE id = ?", invoice.id);
+    }
+
+    res.json({ success: true, message: `Invoice emailed to ${invoice.email}` });
+  } catch (err) {
+    console.error('Error emailing invoice:', err);
+    res.status(500).json({ error: err.message || 'Failed to email invoice' });
   }
 });
 

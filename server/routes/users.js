@@ -5,6 +5,21 @@ const jwt = require('jsonwebtoken');
 const { prepareAll, prepareGet, prepareRun } = require('../database');
 const { generateTokens, getSecret, requireRole, requireAuth } = require('../middleware/auth');
 
+// GET /api/users/case-managers — list users eligible for case assignment
+router.get('/case-managers', requireAuth, async (req, res) => {
+    try {
+        const users = await prepareAll(
+            `SELECT id, name, email, role FROM users
+             WHERE status = 'active' AND role IN ('Admin', 'Case Manager', 'RCIC Consultant')
+             ORDER BY name`
+        );
+        res.json(users);
+    } catch (err) {
+        console.error('Error fetching case managers:', err);
+        res.status(500).json({ error: 'Failed to fetch case managers' });
+    }
+});
+
 // GET /api/users — list all users with session info (protected)
 router.get('/', requireAuth, async (req, res) => {
     try {

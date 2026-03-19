@@ -30,6 +30,11 @@ router.get('/', async (req, res) => {
 
         const clients = await prepareAll(query, ...params);
 
+        // Fetch case manager names in bulk
+        const userRows = await prepareAll('SELECT id, name FROM users');
+        const userMap = {};
+        userRows.forEach(u => { userMap[u.id] = u.name; });
+
         const enriched = await Promise.all(clients.map(async (c) => {
             const [docCount, formCount, checkTotal, checkDone, deadlineCount] = await Promise.all([
                 prepareGet('SELECT COUNT(*) as count FROM documents WHERE client_id = ?', c.id),
@@ -40,6 +45,7 @@ router.get('/', async (req, res) => {
             ]);
             return {
                 ...c,
+                assigned_to_name: c.assigned_to ? (userMap[c.assigned_to] || null) : null,
                 doc_count: parseInt(docCount?.count || 0),
                 form_count: parseInt(formCount?.count || 0),
                 checklist_total: parseInt(checkTotal?.count || 0),
@@ -58,7 +64,7 @@ router.get('/', async (req, res) => {
 // POST /api/clients - Create a new client
 router.post('/', async (req, res) => {
     try {
-        const { first_name, last_name, email, phone, nationality, date_of_birth, passport_number, visa_type, notes } = req.body;
+        const { first_name, last_name, email, phone, nationality, date_of_birth, passport_number, visa_type, notes, assigned_to } = req.body;
 
         if (!first_name || !last_name) {
             return res.status(400).json({ error: 'First name and last name are required' });
@@ -67,10 +73,11 @@ router.post('/', async (req, res) => {
         const formToken = uuidv4();
 
         const result = await prepareRun(
-            `INSERT INTO clients (first_name, last_name, email, phone, nationality, date_of_birth, passport_number, visa_type, notes, form_token, pif_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+            `INSERT INTO clients (first_name, last_name, email, phone, nationality, date_of_birth, passport_number, visa_type, notes, form_token, pif_status, assigned_to)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
             first_name, last_name, email || null, phone || null, nationality || null,
-            date_of_birth || null, passport_number || null, visa_type || null, notes || null, formToken
+            date_of_birth || null, passport_number || null, visa_type || null, notes || null, formToken,
+            assigned_to || null
         );
 
         const client = await prepareGet('SELECT * FROM clients WHERE id = ?', result.lastInsertRowid);
@@ -159,12 +166,58 @@ router.post('/:id/send-portal', async (req, res) => {
     }
 });
 
+// PATCH /api/clients/:id/assign - Assign/change case manager
+router.patch('/:id/assign', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        const { assigned_to } = req.body;
+        const client = await prepareGet('SELECT * FROM clients WHERE id = ?', id);
+        if (!client) return res.status(404).json({ error: 'Client not found' });
+
+        await prepareRun('UPDATE clients SET assigned_to = ?, updated_at = NOW() WHERE id = ?', assigned_to || null, id);
+
+        // Get the case manager name for timeline
+        let cmName = 'Unassigned';
+        if (assigned_to) {
+            const cm = await prepareGet('SELECT name FROM users WHERE id = ?', assigned_to);
+            cmName = cm ? cm.name : 'Unknown';
+        }
+
+        // Timeline event
+        await prepareRun(
+            `INSERT INTO client_timeline (client_id, event_type, title, description, created_by)
+             VALUES (?, 'status_change', ?, ?, 'Admin')`,
+            id,
+            assigned_to ? `Case manager assigned: ${cmName}` : 'Case manager unassigned',
+            assigned_to ? `${cmName} has been assigned as case manager` : 'Case manager has been removed'
+        );
+
+        // Audit log
+        await logAudit(id, 'client', id, 'assign_case_manager', 'assigned_to',
+            client.assigned_to ? String(client.assigned_to) : null,
+            assigned_to ? String(assigned_to) : null,
+            req.user?.id || null, req.ip);
+
+        const updated = await prepareGet('SELECT * FROM clients WHERE id = ?', id);
+        res.json(updated);
+    } catch (err) {
+        console.error('Error assigning case manager:', err);
+        res.status(500).json({ error: 'Failed to assign case manager' });
+    }
+});
+
 // GET /api/clients/:id - Get single client
 router.get('/:id', async (req, res) => {
     try {
         const client = await prepareGet('SELECT * FROM clients WHERE id = ?', parseInt(req.params.id));
         if (!client) {
             return res.status(404).json({ error: 'Client not found' });
+        }
+
+        // Resolve case manager name
+        if (client.assigned_to) {
+            const cm = await prepareGet('SELECT name FROM users WHERE id = ?', client.assigned_to);
+            client.assigned_to_name = cm ? cm.name : null;
         }
 
         const [documents, forms, clientData, filledForms, retainers, retainerAgreements, employerLinks, familyMembers, deadlines, checklistProgress, verificationSummary] = await Promise.all([

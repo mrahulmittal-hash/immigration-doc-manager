@@ -5,6 +5,7 @@ const API_BASE = '/api';
 
 // Context for passing change-highlight function to all field components
 const ChgContext = createContext(null);
+const FieldCommentsContext = createContext({});
 
 const STEPS = [
   { id: 'personal',     title: 'Personal Details',     icon: '👤', desc: 'Your identity, birth details, and physical description' },
@@ -145,14 +146,19 @@ function invalidFields(stepId, fd) {
 }
 
 /* ─── Field Components ─────────────────────────────────────── */
-const Field = ({ label, req, hint, err, changed, oldValue, children }) => (
-  <div className={`pif-field-wrap${changed ? ' pif-field-changed' : ''}`}>
+const Field = ({ label, req, hint, err, changed, oldValue, comment, children }) => (
+  <div className={`pif-field-wrap${changed ? ' pif-field-changed' : ''}${comment ? ' pif-field-has-comment' : ''}`}>
     <label className="pif-field-label">
       {label}{req && <span className="pif-req"> *</span>}
       {err && <span className="pif-field-err-dot" title="Required">!</span>}
       {changed && <span className="pif-changed-badge">Changed</span>}
     </label>
     {children}
+    {comment && (
+      <div className="pif-field-comment">
+        <span style={{ fontWeight: 700 }}>💬 Case Manager:</span> {comment}
+      </div>
+    )}
     {changed && oldValue !== undefined && oldValue !== '' && (
       <div className="pif-changed-old">Previously: <strong>{typeof oldValue === 'boolean' ? (oldValue ? 'Yes' : 'No') : String(oldValue)}</strong></div>
     )}
@@ -163,11 +169,13 @@ const Field = ({ label, req, hint, err, changed, oldValue, children }) => (
 
 const PInput = ({ label, field, value, onChange, type = 'text', req, placeholder, hint, errors }) => {
   const chg = useContext(ChgContext);
+  const comments = useContext(FieldCommentsContext);
   const c = chg?.(field) || {};
+  const comment = comments[field];
   return (
-    <Field label={label} req={req} hint={hint} err={errors?.has(field)} changed={c.changed} oldValue={c.oldValue}>
+    <Field label={label} req={req} hint={hint} err={errors?.has(field)} changed={c.changed} oldValue={c.oldValue} comment={comment}>
       <input type={type}
-        className={`pif-ctrl${errors?.has(field) ? ' pif-ctrl-err' : ''}`}
+        className={`pif-ctrl${errors?.has(field) ? ' pif-ctrl-err' : ''}${comment ? ' pif-ctrl-commented' : ''}`}
         value={value || ''}
         placeholder={placeholder}
         onChange={e => onChange(field, e.target.value)} />
@@ -353,6 +361,7 @@ export default function PIFForm() {
   const [showErrors, setShowErrors] = useState(false);
   const [reverifyMode, setReverifyMode] = useState(false);
   const [reverifyData, setReverifyData] = useState(null); // { reverification_id, changed_fields, current_data }
+  const [fieldComments, setFieldComments] = useState({}); // { 'personal.firstName': 'Please correct...' }
 
   const [fd, setFd] = useState({
     // ── Personal Details ──
@@ -474,6 +483,12 @@ export default function PIFForm() {
           setUploadedFiles(grouped);
         }
       }).catch(() => {});
+
+    // Fetch case manager comments for flagged fields
+    fetch(`${API_BASE}/pif/${token}/field-comments`)
+      .then(r => r.json())
+      .then(data => { if (data.comments) setFieldComments(data.comments); })
+      .catch(() => {});
   }, [token]);
 
   // Helper for re-verification change highlighting
@@ -950,6 +965,7 @@ export default function PIFForm() {
   /* ─── Main render ──────────────────────────────────────── */
   return (
     <ChgContext.Provider value={chg}>
+    <FieldCommentsContext.Provider value={fieldComments}>
     <div className="pif-shell">
       {/* Left panel */}
       <div className="pif-left">
@@ -1074,6 +1090,7 @@ export default function PIFForm() {
         </div>
       </div>
     </div>
+    </FieldCommentsContext.Provider>
     </ChgContext.Provider>
   );
 }

@@ -8,15 +8,17 @@ export default function CreateClient() {
   const [saving, setSaving] = useState(false);
   const [err, setErr]       = useState('');
   const [serviceFees, setServiceFees] = useState([]);
+  const [caseManagers, setCaseManagers] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]); // [{fee, discount_type, discount_value}]
   const [form, setForm] = useState({
     first_name:'', last_name:'', email:'', phone:'',
     nationality:'', date_of_birth:'', passport_number:'',
-    visa_type:'', notes:''
+    visa_type:'', notes:'', assigned_to:''
   });
 
   useEffect(() => {
     api.getActiveServiceFees().then(setServiceFees).catch(() => {});
+    api.getCaseManagers().then(setCaseManagers).catch(() => {});
   }, []);
 
   function set(k, v) { setForm(f => ({...f, [k]: v})); }
@@ -168,6 +170,15 @@ export default function CreateClient() {
             <div className="form-group form-full">
               <label className="form-label">Case Notes</label>
               <textarea className="form-textarea" rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Any initial assessment or intake notes..." />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Assign Case Manager <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(Optional)</span></label>
+              <select className="form-input" value={form.assigned_to} onChange={e => set('assigned_to', e.target.value)}>
+                <option value="">— Assign later —</option>
+                {caseManagers.map(u => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

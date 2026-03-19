@@ -60,6 +60,8 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
   const [verificationResults, setVerificationResults] = useState(null);
   const [verifying, setVerifying] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const [caseManagers, setCaseManagers] = useState([]);
   const [showRetainerModal, setShowRetainerModal] = useState(false);
   const [retainerAgreements, setRetainerAgreements] = useState([]);
   const [generatingAgreement, setGeneratingAgreement] = useState(false);
@@ -78,6 +80,7 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
   }, [id]);
 
   useEffect(() => { fetchClient(); }, [fetchClient]);
+  useEffect(() => { api.getCaseManagers().then(setCaseManagers).catch(() => {}); }, []);
 
   const fetchPifData = useCallback(async () => {
     setPifLoading(true);
@@ -171,6 +174,15 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
     win.print();
   };
 
+  const handleAssignCaseManager = async (userId) => {
+    try {
+      await api.assignCaseManager(id, userId || null);
+      setToast({ message: userId ? 'Case manager assigned' : 'Case manager removed', type: 'success' });
+      fetchClient();
+    } catch (e) { setToast({ message: e.message, type: 'error' }); }
+    setShowAssignDropdown(false);
+  };
+
   const handleProcessing = (on, msg) => { setProcessing(on); setProcessingMsg(msg || ''); };
   const handleToast = (message, type) => setToast({ message, type });
 
@@ -211,6 +223,37 @@ export default function ClientDetailCenter({ clientId, onClientUpdated }) {
             }}>
               <pif.Icon size={12} /> {pif.label}
             </span>
+            {/* Case Manager */}
+            <div style={{ position: 'relative' }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, padding: '3px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 'auto', borderRadius: 20, border: '1px solid var(--border)', background: client.assigned_to ? 'rgba(79,70,229,0.08)' : 'var(--bg-elevated)', color: client.assigned_to ? 'var(--primary)' : 'var(--text-muted)' }}
+                onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+              >
+                {client.assigned_to_name || client.assigned_to
+                  ? `👤 ${client.assigned_to_name || 'Assigned'}`
+                  : '+ Assign Case Manager'}
+              </button>
+              {showAssignDropdown && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowAssignDropdown(false)} />
+                  <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: '#fff', borderRadius: 10, padding: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid var(--border)', minWidth: 220, zIndex: 50, maxHeight: 240, overflowY: 'auto' }}>
+                    <div style={{ padding: '6px 10px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Assign Case Manager</div>
+                    {client.assigned_to && (
+                      <button onClick={() => handleAssignCaseManager(null)} style={{ width: '100%', textAlign: 'left', padding: '8px 10px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--accent-red)', borderRadius: 6 }}>
+                        ✕ Remove Assignment
+                      </button>
+                    )}
+                    {caseManagers.map(u => (
+                      <button key={u.id} onClick={() => handleAssignCaseManager(u.id)}
+                        style={{ width: '100%', textAlign: 'left', padding: '8px 10px', border: 'none', background: client.assigned_to === u.id ? 'var(--primary-glow)' : 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)', borderRadius: 6, fontWeight: client.assigned_to === u.id ? 700 : 400 }}>
+                        {u.name} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>({u.role})</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>

@@ -68,6 +68,8 @@ export const api = {
     createClient: (data) => request('/clients', { method: 'POST', body: JSON.stringify(data) }),
     updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
     deleteClient: (id) => request(`/clients/${id}`, { method: 'DELETE' }),
+    assignCaseManager: (clientId, userId) => request(`/clients/${clientId}/assign`, { method: 'PATCH', body: JSON.stringify({ assigned_to: userId }) }),
+    getCaseManagers: () => request('/users/case-managers'),
 
     // Documents
     uploadDocuments: (clientId, files, category = 'general') => {
@@ -195,18 +197,17 @@ export const api = {
     getRetainerPayments: (retainerId) => request(`/retainers/${retainerId}/payments`),
     recordPayment: (retainerId, data) => request(`/retainers/${retainerId}/payments`, { method: 'POST', body: JSON.stringify(data) }),
 
-    // Trust Accounting
+    // Accounting
     getAccountingSummary: () => request('/accounting/summary'),
-    getClientTrust: (clientId) => request(`/clients/${clientId}/trust`),
-    depositToTrust: (clientId, data) => request(`/clients/${clientId}/trust/deposit`, { method: 'POST', body: JSON.stringify(data) }),
-    releaseFromTrust: (clientId, data) => request(`/clients/${clientId}/trust/release`, { method: 'POST', body: JSON.stringify(data) }),
-    refundFromTrust: (clientId, data) => request(`/clients/${clientId}/trust/refund`, { method: 'POST', body: JSON.stringify(data) }),
     getClientInvoices: (clientId) => request(`/clients/${clientId}/invoices`),
     createInvoice: (clientId, data) => request(`/clients/${clientId}/invoices`, { method: 'POST', body: JSON.stringify(data) }),
     updateInvoice: (id, data) => request(`/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    getClientMilestones: (clientId) => request(`/clients/${clientId}/milestones`),
-    createMilestones: (clientId, data) => request(`/clients/${clientId}/milestones`, { method: 'POST', body: JSON.stringify(data) }),
-    releaseMilestone: (milestoneId) => request(`/milestones/${milestoneId}/release`, { method: 'POST' }),
+    getClientPayments: (clientId) => request(`/clients/${clientId}/payments`),
+    recordClientPayment: (clientId, data) => request(`/clients/${clientId}/payments`, { method: 'POST', body: JSON.stringify(data) }),
+    getClientBalance: (clientId) => request(`/clients/${clientId}/balance`),
+    getInvoicePDFUrl: (invoiceId) => `${API_BASE}/invoices/${invoiceId}/pdf`,
+    getReceiptPDFUrl: (paymentId) => `${API_BASE}/payments/${paymentId}/receipt-pdf`,
+    emailInvoice: (invoiceId) => request(`/invoices/${invoiceId}/email`, { method: 'POST' }),
 
     // Tasks
     getTasks: (filter, category, clientId) => request(`/tasks?filter=${filter || ''}&category=${category || ''}${clientId ? `&client_id=${clientId}` : ''}`),

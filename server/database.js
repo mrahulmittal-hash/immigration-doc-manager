@@ -217,6 +217,9 @@ async function initDatabase() {
     // Add pipeline_stage column to clients
     await client.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS pipeline_stage TEXT DEFAULT 'lead'`);
 
+    // Add case manager assignment to clients
+    await client.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+
     // Add data_map_json to filled_forms for form editor support
     await client.query(`ALTER TABLE filled_forms ADD COLUMN IF NOT EXISTS data_map_json TEXT`);
 
@@ -509,6 +512,24 @@ async function initDatabase() {
         reference_number TEXT,
         notes            TEXT,
         created_at       TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // ── Invoice line_items + payment invoice link ──────────────
+    await client.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS line_items JSONB DEFAULT '[]'`);
+    await client.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS invoice_id INTEGER REFERENCES invoices(id) ON DELETE SET NULL`);
+    // Make retainer_id nullable on payments (payments can be for invoices without retainers)
+    await client.query(`ALTER TABLE payments ALTER COLUMN retainer_id DROP NOT NULL`);
+
+    // ── Receipts ─────────────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS receipts (
+        id              SERIAL PRIMARY KEY,
+        payment_id      INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+        client_id       INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        receipt_number  TEXT NOT NULL UNIQUE,
+        pdf_path        TEXT,
+        generated_at    TIMESTAMPTZ DEFAULT NOW()
       )
     `);
 
