@@ -7,7 +7,7 @@ export const ROLES = {
 
 export const ROLE_PERMISSIONS = {
     'Admin': {
-        routes: ['/', '/clients', '/pipeline', '/tasks', '/calendar', '/retainers', '/users', '/ircc-updates', '/ircc-templates', '/settings/email', '/admin'],
+        routes: ['/', '/clients', '/pipeline', '/tasks', '/calendar', '/retainers', '/users', '/ircc-updates', '/ircc-templates', '/settings/email', '/admin', '/payroll'],
         canVerifyPIF: true,
         canGenerateForms: true,
         canManageUsers: true,

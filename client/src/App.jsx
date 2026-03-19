@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, GitBranch, CheckSquare, Calendar, CreditCard,
-  Newspaper, UserCog, LogOut, ChevronDown, Settings, Briefcase, Menu, X
+  Newspaper, UserCog, LogOut, ChevronDown, Settings, Briefcase, Menu, X, Receipt
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { canAccessRoute } from './constants/roles';
@@ -18,6 +18,7 @@ import SignPage from './pages/SignPage';
 import ClientPortal from './pages/ClientPortal';
 import UsersPage from './pages/UsersPage';
 import ImmigrationUpdates from './pages/ImmigrationUpdates';
+import Payroll from './pages/Payroll';
 import IRCCTemplates from './pages/IRCCTemplates';
 import AdminSettings from './pages/AdminSettings';
 import LoginPage from './pages/LoginPage';
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
 
 const MORE_ITEMS = [
   { to: '/retainers',    icon: CreditCard,  label: 'Accounting' },
+  { to: '/payroll',      icon: Receipt,     label: 'Payroll' },
   { to: '/ircc-updates', icon: Newspaper,   label: 'IRCC Updates' },
   { to: '/users',        icon: UserCog,     label: 'Users' },
   { to: '/admin',          icon: Briefcase, label: 'Admin Settings' },
@@ -207,6 +209,9 @@ function AppRoutes() {
                 } />
                 <Route path="/users" element={
                   <ProtectedRoute roles={['Admin']}><UsersPage /></ProtectedRoute>
+                } />
+                <Route path="/payroll" element={
+                  <ProtectedRoute roles={['Admin']}><Payroll /></ProtectedRoute>
                 } />
                 <Route path="/ircc-updates" element={
                   <ProtectedRoute path="/ircc-updates"><ImmigrationUpdates /></ProtectedRoute>

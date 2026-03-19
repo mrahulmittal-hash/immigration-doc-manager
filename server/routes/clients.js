@@ -5,6 +5,7 @@ const { prepareAll, prepareGet, prepareRun } = require('../database');
 const { sendPIFEmail, sendPortalEmail } = require('../services/emailService');
 const { logBulkChanges, logAudit } = require('../middleware/audit');
 const { createWorkflowTask, completeWorkflowTask } = require('../services/autoTaskService');
+const { generateInvoiceNumber } = require('../services/accountingService');
 
 // GET /api/clients - List all clients
 router.get('/', async (req, res) => {
@@ -81,6 +82,47 @@ router.post('/', async (req, res) => {
         );
 
         const client = await prepareGet('SELECT * FROM clients WHERE id = ?', result.lastInsertRowid);
+
+        // Auto-create retainers + invoice from selected services
+        const services = req.body.services || [];
+        for (const svc of services) {
+            const retResult = await prepareRun(
+                `INSERT INTO retainers (client_id, service_type, retainer_fee, amount_paid, status) VALUES (?, ?, ?, 0, 'pending')`,
+                client.id, svc.service_name, svc.adjusted_fee || svc.base_fee
+            );
+            // Create fee adjustment if discount applied
+            if (svc.discount && svc.discount > 0 && retResult.lastInsertRowid) {
+                await prepareRun(
+                    `INSERT INTO fee_adjustments (retainer_id, client_id, type, amount, percentage, description) VALUES (?, ?, 'discount', ?, ?, ?)`,
+                    retResult.lastInsertRowid, client.id,
+                    svc.discount_type === 'fixed' ? svc.discount : 0,
+                    svc.discount_type === 'percentage' ? parseFloat(svc.discount_value || 0) : 0,
+                    `Registration discount`
+                );
+            }
+        }
+
+        // Auto-generate invoice if services were selected
+        if (services.length > 0) {
+            try {
+                const invoiceNumber = await generateInvoiceNumber();
+                const lineItems = services.map(svc => ({
+                    description: svc.service_name,
+                    quantity: 1,
+                    amount: svc.adjusted_fee || svc.base_fee,
+                    gst: svc.gst || 0,
+                }));
+                const grandTotal = services.reduce((sum, svc) => sum + (svc.total || svc.adjusted_fee || svc.base_fee), 0);
+
+                await prepareRun(
+                    `INSERT INTO invoices (client_id, invoice_number, description, amount, line_items, status)
+                     VALUES (?, ?, ?, ?, ?::jsonb, 'sent')`,
+                    client.id, invoiceNumber,
+                    `Services for ${first_name} ${last_name}`,
+                    grandTotal, JSON.stringify(lineItems)
+                );
+            } catch (e) { console.error('Auto-invoice creation failed:', e.message); }
+        }
 
         // Auto-create workflow tasks
         const clientName = `${first_name} ${last_name}`;

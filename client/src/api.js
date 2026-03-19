@@ -209,6 +209,22 @@ export const api = {
     getReceiptPDFUrl: (paymentId) => `${API_BASE}/payments/${paymentId}/receipt-pdf`,
     emailInvoice: (invoiceId) => request(`/invoices/${invoiceId}/email`, { method: 'POST' }),
 
+    // Employers
+    getEmployers: (search = '') => request(`/employers${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+    getEmployer: (id) => request(`/employers/${id}`),
+    getEmployerClients: (id) => request(`/employers/${id}/clients`),
+
+    // Payroll
+    getPayrollRuns: (params = {}) => { const qs = new URLSearchParams(params).toString(); return request(`/payroll${qs ? `?${qs}` : ''}`); },
+    createPayrollRun: (data) => request('/payroll/run', { method: 'POST', body: JSON.stringify(data) }),
+    getPayrollRun: (id) => request(`/payroll/${id}`),
+    updatePayrollRun: (id, data) => request(`/payroll/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    finalizePayrollRun: (id) => request(`/payroll/${id}/finalize`, { method: 'POST' }),
+    recordWorkerPayment: (id, data) => request(`/payroll/${id}/record-worker-payment`, { method: 'POST', body: JSON.stringify(data) }),
+    releaseToEmployer: (id, data) => request(`/payroll/${id}/release-to-employer`, { method: 'POST', body: JSON.stringify(data) }),
+    getEmployerPayroll: (employerId) => request(`/employers/${employerId}/payroll`),
+    getClientPayroll: (clientId) => request(`/clients/${clientId}/payroll`),
+
     // Tasks
     getTasks: (filter, category, clientId) => request(`/tasks?filter=${filter || ''}&category=${category || ''}${clientId ? `&client_id=${clientId}` : ''}`),
     getTodayTasks: () => request('/tasks/today'),

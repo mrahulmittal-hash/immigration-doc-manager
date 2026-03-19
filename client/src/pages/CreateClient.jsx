@@ -81,42 +81,32 @@ export default function CreateClient() {
     e.preventDefault();
     if (!form.first_name || !form.last_name) { setErr('First name and last name are required.'); return; }
 
-    // Set visa_type to all service names joined
     const serviceNames = selectedServices.map(s => s.fee?.service_name).filter(Boolean);
     const submitForm = {
       ...form,
       visa_type: serviceNames.length > 0 ? serviceNames[0] : form.visa_type,
+      // Pass full service details — server creates retainers + auto-invoice
+      services: selectedServices
+        .filter(s => s.fee && Number(s.fee.base_fee) > 0)
+        .map(s => {
+          const calc = calcServiceFee(s);
+          return {
+            service_name: s.fee.service_name,
+            base_fee: calc.base,
+            discount: calc.discount,
+            discount_type: s.discount_type,
+            discount_value: s.discount_value,
+            adjusted_fee: calc.adjusted,
+            gst_rate: calc.gstRate,
+            gst: calc.gst,
+            total: calc.total,
+          };
+        }),
     };
 
     setSaving(true); setErr('');
     try {
       const client = await api.createClient(submitForm);
-
-      // Create retainers for each selected service
-      for (const svc of selectedServices) {
-        if (svc.fee && Number(svc.fee.base_fee) > 0) {
-          try {
-            const calc = calcServiceFee(svc);
-            const retainer = await api.createRetainer(client.id, {
-              service_type: svc.fee.service_name,
-              retainer_fee: calc.adjusted, // Use discounted fee
-            });
-            // If there's a discount, create a fee adjustment record
-            if (calc.discount > 0 && retainer.id) {
-              try {
-                await api.createFeeAdjustment(client.id, {
-                  retainer_id: retainer.id,
-                  type: 'discount',
-                  percentage: svc.discount_type === 'percentage' ? Number(svc.discount_value) : 0,
-                  amount: svc.discount_type === 'fixed' ? Number(svc.discount_value) : 0,
-                  description: `Registration discount${svc.discount_type === 'percentage' ? ` (${svc.discount_value}%)` : ` ($${svc.discount_value})`}`,
-                });
-              } catch {}
-            }
-          } catch (retErr) { console.error('Failed to auto-create retainer:', retErr); }
-        }
-      }
-
       navigate(`/clients/${client.id}`);
     } catch (e) {
       setErr(e.message || 'Failed to create client');

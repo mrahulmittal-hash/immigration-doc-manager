@@ -38,6 +38,8 @@ const auditRouter = require('./routes/audit');
 const adminRouter = require('./routes/admin');
 const emailIngestionRouter = require('./routes/emailIngestion');
 const webhooksRouter = require('./routes/webhooks');
+const employersRouter = require('./routes/employers');
+const payrollRouter = require('./routes/payroll');
 
 // Mount routes
 // Unprotected routes first (login, public endpoints)
@@ -68,6 +70,8 @@ app.use('/api', requireAuth, auditRouter);
 app.use('/api/admin', requireAuth, requireRole('Admin'), adminRouter);
 app.use('/api/admin', requireAuth, requireRole('Admin'), emailIngestionRouter);
 app.use('/api', requireAuth, adminRouter);  // non-admin routes in admin.js (fee-adjustments, retainer-agreements, service-fees/active)
+app.use('/api', requireAuth, employersRouter);
+app.use('/api', requireAuth, requireRole('Admin'), payrollRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {

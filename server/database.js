@@ -615,6 +615,41 @@ async function initDatabase() {
       )
     `);
 
+    // ── Payroll Runs ───────────────────────────────────────────
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payroll_runs (
+        id                      SERIAL PRIMARY KEY,
+        employer_id             INTEGER NOT NULL REFERENCES employers(id) ON DELETE CASCADE,
+        client_id               INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        employer_client_id      INTEGER REFERENCES employer_clients(id) ON DELETE SET NULL,
+        pay_period_start        DATE NOT NULL,
+        pay_period_end          DATE NOT NULL,
+        pay_frequency           TEXT DEFAULT 'biweekly',
+        hours_worked            NUMERIC(8,2),
+        hourly_rate             NUMERIC(10,2),
+        gross_pay               NUMERIC(10,2),
+        federal_tax             NUMERIC(10,2),
+        provincial_tax          NUMERIC(10,2),
+        cpp_employee            NUMERIC(10,2),
+        ei_employee             NUMERIC(10,2),
+        other_deductions        NUMERIC(10,2) DEFAULT 0,
+        total_deductions        NUMERIC(10,2),
+        net_pay                 NUMERIC(10,2),
+        cpp_employer            NUMERIC(10,2),
+        ei_employer             NUMERIC(10,2),
+        total_employer_cost     NUMERIC(10,2),
+        worker_payment_status   TEXT DEFAULT 'pending',
+        employer_payment_status TEXT DEFAULT 'pending',
+        worker_paid_amount      NUMERIC(10,2) DEFAULT 0,
+        employer_paid_amount    NUMERIC(10,2) DEFAULT 0,
+        province                TEXT DEFAULT 'ON',
+        status                  TEXT DEFAULT 'draft',
+        notes                   TEXT,
+        created_by              INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at              TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
     // ── Dependents ─────────────────────────────────────────────
     await client.query(`
       CREATE TABLE IF NOT EXISTS dependents (
