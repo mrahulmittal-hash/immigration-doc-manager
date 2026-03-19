@@ -142,40 +142,52 @@ router.post('/retainers/:id/payments', async (req, res) => {
 // ACCOUNTING SUMMARY & TRUST
 // ═══════════════════════════════════════════════════════════════
 
-// GET /api/accounting/summary — Aggregate financial summary
+// GET /api/accounting/summary — Aggregate financial summary (invoice/payment based)
 router.get('/accounting/summary', async (req, res) => {
   try {
-    const totalTrust = await prepareGet('SELECT COALESCE(SUM(balance), 0) as total FROM trust_accounts');
-    const operating = await prepareGet('SELECT balance FROM operating_accounts WHERE id = 1');
-    const pendingReleases = await prepareGet(
-      "SELECT COALESCE(SUM(amount), 0) as total FROM milestone_releases WHERE status = 'pending'"
-    );
+    const totalInvoiced = await prepareGet('SELECT COALESCE(SUM(amount), 0) as total FROM invoices');
+    const totalPaid = await prepareGet('SELECT COALESCE(SUM(amount), 0) as total FROM payments');
     const outstandingInvoices = await prepareGet(
-      "SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE status IN ('sent', 'overdue')"
+      "SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE status IN ('sent', 'overdue', 'draft', 'partially_paid')"
+    );
+    const overdueInvoices = await prepareGet(
+      "SELECT COALESCE(SUM(amount), 0) as total FROM invoices WHERE status = 'overdue'"
     );
 
-    const recentTx = await prepareAll(
-      `SELECT t.*, c.first_name, c.last_name
-       FROM transactions t
-       LEFT JOIN clients c ON c.id = t.client_id
-       ORDER BY t.created_at DESC LIMIT 20`
+    // Recent payments
+    const recentPayments = await prepareAll(
+      `SELECT p.*, c.first_name, c.last_name
+       FROM payments p
+       LEFT JOIN clients c ON c.id = p.client_id
+       ORDER BY p.created_at DESC LIMIT 20`
     );
 
+    // Client balances (invoiced - paid per client)
     const clientBalances = await prepareAll(
-      `SELECT ta.client_id, ta.balance, c.first_name, c.last_name, c.visa_type
-       FROM trust_accounts ta
-       JOIN clients c ON c.id = ta.client_id
-       WHERE ta.balance > 0
-       ORDER BY ta.balance DESC`
+      `SELECT c.id as client_id, c.first_name, c.last_name, c.visa_type, c.email,
+              COALESCE((SELECT SUM(i.amount) FROM invoices i WHERE i.client_id = c.id), 0) as total_invoiced,
+              COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.client_id = c.id), 0) as total_paid
+       FROM clients c
+       WHERE c.status = 'active'
+       ORDER BY c.first_name`
     );
+
+    // Calculate balance_due per client
+    const enrichedBalances = clientBalances.map(c => ({
+      ...c,
+      total_invoiced: parseFloat(c.total_invoiced),
+      total_paid: parseFloat(c.total_paid),
+      balance_due: parseFloat(c.total_invoiced) - parseFloat(c.total_paid),
+    }));
 
     res.json({
-      total_trust: parseFloat(totalTrust?.total || 0),
-      operating_balance: parseFloat(operating?.balance || 0),
-      pending_releases: parseFloat(pendingReleases?.total || 0),
-      outstanding_invoices: parseFloat(outstandingInvoices?.total || 0),
-      recent_transactions: recentTx,
-      client_balances: clientBalances,
+      total_invoiced: parseFloat(totalInvoiced?.total || 0),
+      total_collected: parseFloat(totalPaid?.total || 0),
+      outstanding: parseFloat(outstandingInvoices?.total || 0),
+      overdue: parseFloat(overdueInvoices?.total || 0),
+      balance_due: parseFloat(totalInvoiced?.total || 0) - parseFloat(totalPaid?.total || 0),
+      recent_payments: recentPayments,
+      client_balances: enrichedBalances,
     });
   } catch (err) {
     console.error('Error fetching accounting summary:', err);
