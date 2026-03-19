@@ -3129,3 +3129,240 @@ tbody tr:hover {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE DESIGN — Mobile & Tablet
+   Breakpoints: tablet ≤ 1024px  |  mobile ≤ 767px
+   ════════════════════════════════════════════════════════════ */
+
+/* ── Hamburger button (hidden on desktop) ──────────────────── */
+.hamburger-btn {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 44px; height: 44px;
+  background: transparent; border: none; cursor: pointer;
+  color: #fff; border-radius: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.hamburger-btn:hover { background: rgba(255,255,255,0.12); }
+
+/* Mobile overlay behind open nav drawer */
+.mobile-nav-overlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 45;
+  background: rgba(0,0,0,0.45);
+}
+
+/* Mobile footer inside nav drawer */
+.mobile-nav-footer { display: none; }
+
+.mobile-logout {
+  display: flex; align-items: center; gap: 8px;
+  width: calc(100% - 28px); margin: 0 14px 14px;
+  padding: 10px 14px; border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 600;
+  border: none; cursor: pointer;
+}
+
+/* ════════════════════════════════════════════════════════════
+   TABLET  ≤ 1024px
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+
+  /* Nav links tighter */
+  .topnav-link { padding: 8px 10px; font-size: 12px; }
+  .topnav-title { font-size: 15px; }
+  .topnav-badge { display: none; }
+  .topnav-user-email { display: none; }
+
+  /* Page padding */
+  .page-content { padding: 20px 20px; }
+
+  /* 3-panel: hide right context panel, shrink sidebar */
+  .clients-sidebar { width: 220px; }
+  .clients-context { display: none; }
+
+  /* Form grids: 3-col → 2-col */
+  .form-grid-3 { grid-template-columns: 1fr 1fr; }
+
+  /* PIF sidebar narrower */
+  .pif-left { width: 240px; }
+
+  /* Pipeline columns narrower */
+  .pipeline-col { width: 200px; min-width: 200px; }
+
+  /* Modals */
+  .modal { max-width: 90vw; width: 90vw; }
+
+  /* Stats grid min shrink */
+  .stats-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+  .dash-stats-row { grid-template-columns: repeat(3, 1fr); }
+  .dash-workspace-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE  ≤ 767px
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+
+  /* Prevent horizontal scroll globally */
+  html, body { overflow-x: hidden; }
+
+  /* ── TopNav → Hamburger Drawer ─────────────────────────── */
+  .hamburger-btn { display: flex; }
+
+  .mobile-nav-overlay { display: block; }
+
+  .topnav {
+    height: 56px; padding: 0 14px; gap: 0;
+    position: relative; flex-wrap: wrap;
+    overflow: visible;
+  }
+  /* Hide desktop links by default */
+  .topnav-links {
+    display: none;
+    position: absolute; top: 56px; left: 0; right: 0;
+    background: #0f766e;
+    flex-direction: column;
+    padding: 8px 0;
+    z-index: 46;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    max-height: calc(100vh - 56px);
+    overflow-y: auto;
+  }
+  /* Show when nav-open class on topnav */
+  .topnav.nav-open .topnav-links { display: flex; }
+
+  .topnav-link {
+    padding: 14px 20px; border-radius: 0;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .topnav-link:last-of-type { border-bottom: none; }
+
+  /* Hide desktop user info & logout in nav */
+  .topnav-right .topnav-user { display: none; }
+  .topnav-right .topnav-logout { display: none; }
+
+  /* Show mobile footer in drawer */
+  .mobile-nav-footer { display: block; border-top: 1px solid rgba(255,255,255,0.1); margin-top: 8px; }
+
+  /* Hide "More" dropdown arrow on mobile (show inline) */
+  .topnav-right { gap: 8px; }
+
+  /* ── Page content ──────────────────────────────────────── */
+  .page-content { padding: 12px 12px; }
+
+  /* ── Dashboard Stats ───────────────────────────────────── */
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .stat-value { font-size: 22px; }
+  .stat-card { padding: 14px; }
+  .dash-stats-row { grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+  .dash-stat-value { font-size: 22px; }
+  .dash-stat-card { padding: 14px; }
+  .dash-workspace-grid { grid-template-columns: 1fr; gap: 12px; }
+
+  /* ── 3-Panel Client Layout → Stack ────────────────────── */
+  .clients-3panel {
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+    margin: -12px -12px;
+  }
+  .clients-sidebar {
+    width: 100%; flex-shrink: 0;
+    border-right: none; border-bottom: 1px solid var(--border);
+    max-height: none; overflow: visible;
+    height: auto;
+  }
+  .clients-list {
+    height: 220px; overflow-y: auto; flex: none;
+  }
+  .clients-center { overflow: visible; }
+  .clients-center-scroll { overflow: visible; padding: 16px 14px; }
+  .clients-context { display: none; }
+
+  /* ── Pipeline → vertical stack ─────────────────────────── */
+  .pipeline-board {
+    flex-direction: column;
+    overflow-x: visible; overflow-y: auto;
+    gap: 12px;
+  }
+  .pipeline-col {
+    width: 100%; min-width: 0;
+    flex-shrink: 0;
+  }
+
+  /* ── Forms → Single column ─────────────────────────────── */
+  .form-grid   { grid-template-columns: 1fr; }
+  .form-grid-3 { grid-template-columns: 1fr; }
+  .pif-grid2   { grid-template-columns: 1fr; }
+
+  /* Prevent iOS font zoom on inputs */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* ── Tables → Card layout ──────────────────────────────── */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { min-width: 600px; }
+
+  /* ── Modals ────────────────────────────────────────────── */
+  .modal-overlay { align-items: flex-end; padding: 0; }
+  .modal {
+    width: 100%; max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    max-height: 90vh; overflow-y: auto;
+    margin: 0;
+  }
+
+  /* ── PIF Form → Stack sidebar on top ──────────────────── */
+  .pif-shell { flex-direction: column; height: auto; min-height: 100vh; }
+  .pif-left {
+    width: 100%; flex-shrink: 0;
+    border-right: none; border-bottom: 1px solid rgba(255,255,255,.08);
+    padding: 16px 16px;
+    overflow-y: visible;
+    max-height: none;
+  }
+  .pif-step-list { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+  .pif-step-btn  { flex-direction: row; gap: 8px; padding: 8px 10px; }
+  .pif-right { flex: 1; overflow-y: auto; }
+  .pif-right-body { padding: 16px; }
+  .pif-right-footer { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+
+  /* ── Detail cards ──────────────────────────────────────── */
+  .clients-detail-card { padding: 16px; }
+
+  /* ── Global: all buttons at least 44px tall (tap targets) */
+  button, .btn, .btn-primary, .btn-secondary, .btn-ghost,
+  a.btn, .topnav-link, .clients-add-btn {
+    min-height: 44px;
+  }
+
+  /* Restore topnav links height (they're in drawer) */
+  .hamburger-btn { min-height: 44px; }
+
+  /* ── Page headers ──────────────────────────────────────── */
+  .page-header { flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .page-title  { font-size: 18px; }
+  .page-subtitle { font-size: 12px; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 17px; }
+
+  /* ── Trust / Retainer pages ────────────────────────────── */
+  .trust-grid, .retainer-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Calendar cells ────────────────────────────────────── */
+  .calendar-cell { min-height: 50px; font-size: 10px; }
+  .calendar-day-num { font-size: 11px; }
+
+  /* ── Task cards ────────────────────────────────────────── */
+  .tasks-board { flex-direction: column; }
+  .tasks-col   { width: 100%; min-width: 0; }
+}
